@@ -12,9 +12,20 @@ Finally, as this work is done in the context of the Turbin3 Advanced SVM cohort,
 
 ## High level design
 
-The structure of the project looks like this:
+![High level system schema](./media/Based%20ZK%20Rollup.jpg)
+
+The structure of the system is presented in the figure above:
+
+1. Users send transactions to block builders.
+2. Block builders pack transactions into a block they post on-chain, indicating the parent block.
+3. A block is selected by an on-chain program.
+4. Provers fetch the selected block and upload the associated proof.
+5. RPCs fetch the block, verify the proof, execute the block and update their state accordingly.
+6. Users can now fetch the updated state from the RPC
+
+<!-- The structure of the project looks like this:
 
 - A Solana program will enable participants to submit rollup blocks and will implement a heuristic to select the block that will be commited.
 - Participants will use [Aerius zkSVM](https://github.com/aerius-labs/zkSVM) to execute the transactions of the commited block and generate the proof.
 - The proof can then be verified using [Succint SP1](https://blog.succinct.xyz/solana-sp1/) verifier to ensure that the block is valid and update the validating bridge.
-- Off chain databases can then be updated using the commited transactions.
+- Off chain databases can then be updated using the commited transactions. -->
