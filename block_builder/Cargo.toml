@@ -1,0 +1,8 @@
+[package]
+name = "block_builder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh = "1.5.5"
+solana-sdk = "2.1.10"
