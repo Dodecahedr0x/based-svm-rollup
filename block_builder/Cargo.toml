@@ -1,7 +1,7 @@
 [package]
-name = "block-builder"
+name = "block_builder"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-solana-sdk = "2.1.10"
+solana-sdk = { workspace = true }
