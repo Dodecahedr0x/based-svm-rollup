@@ -1,8 +1,10 @@
 [package]
-name = "block_builder"
+name = "zk_svm"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 bitcode = { workspace = true }
+sp1-zkvm = { workspace = true }
 solana-sdk = { workspace = true }
+block_builder = { path = "../block_builder" }

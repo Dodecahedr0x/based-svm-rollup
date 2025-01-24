@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = ["block_builder", "zk_svm"]
+
+[workspace.dependencies]
+solana-sdk = "2.1.10"
+sp1-zkvm = "4.0.1"
+bitcode = "0.6.3"

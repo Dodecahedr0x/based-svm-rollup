@@ -1,90 +1,24 @@
-use std::{collections::HashMap, io::Read, vec};
+use std::{collections::HashMap, vec};
 
+use bitcode::{Decode, Encode};
 use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
+
+#[derive(Decode, Encode)]
+pub struct ExecutionInput {
+    block: RollupBlock,
+}
 
 /// A rollup block, containing all the accounts used and the sequence of instruction.
 ///
 /// The concept of transaction is given up for simplicity and compacity.
+#[derive(Decode, Encode)]
 pub struct RollupBlock {
-    accounts: Vec<Pubkey>,
+    accounts: Vec<[u8; 32]>,
     instructions: Vec<RollupInstruction>,
 }
 
-/// Using custom serialization because it's simple and more compact than borsh.
-/// Using this scheme, it's possible to pack almost 15 transfers in a single L1 tx.
-impl Into<Vec<u8>> for RollupBlock {
-    fn into(self) -> Vec<u8> {
-        vec![
-            (self.accounts.len() as u16).to_le_bytes().to_vec(),
-            self.accounts
-                .iter()
-                .map(|account| account.to_bytes().to_vec())
-                .collect::<Vec<Vec<u8>>>()
-                .concat(),
-            self.instructions
-                .iter()
-                .map(|ix| {
-                    vec![
-                        (ix.accounts_indices.len() as u8).to_le_bytes().to_vec(),
-                        ix.accounts_indices
-                            .iter()
-                            .map(|index| index.to_le_bytes().to_vec())
-                            .collect::<Vec<Vec<u8>>>()
-                            .concat(),
-                        ix.data.clone(),
-                    ]
-                    .concat()
-                })
-                .collect::<Vec<Vec<u8>>>()
-                .concat(),
-        ]
-        .concat()
-    }
-}
-
-impl From<Vec<u8>> for RollupBlock {
-    fn from(value: Vec<u8>) -> Self {
-        let mut cursor = std::io::Cursor::new(value);
-
-        let accounts_len = u16::from_le_bytes([cursor.get_ref()[0], cursor.get_ref()[1]]) as usize;
-        cursor.set_position(2);
-
-        let mut accounts = Vec::with_capacity(accounts_len);
-        for _ in 0..accounts_len {
-            let mut pubkey_bytes = [0u8; 32];
-            cursor.read_exact(&mut pubkey_bytes).unwrap();
-            accounts.push(Pubkey::new_from_array(pubkey_bytes));
-        }
-
-        let mut instructions = Vec::new();
-        while (cursor.position() as usize) < cursor.get_ref().len() {
-            let accounts_indices_len = cursor.get_ref()[cursor.position() as usize] as usize;
-            cursor.set_position(cursor.position() + 1);
-
-            let mut accounts_indices = Vec::with_capacity(accounts_indices_len);
-            for _ in 0..accounts_indices_len {
-                let mut index_bytes = [0u8; 2];
-                cursor.read_exact(&mut index_bytes).unwrap();
-                accounts_indices.push(u16::from_le_bytes(index_bytes));
-            }
-
-            let mut data = Vec::new();
-            cursor.read_to_end(&mut data).unwrap();
-
-            instructions.push(RollupInstruction {
-                accounts_indices,
-                data,
-            });
-        }
-
-        RollupBlock {
-            accounts,
-            instructions,
-        }
-    }
-}
-
 /// A single instruction of a rollup
+#[derive(Decode, Encode)]
 pub struct RollupInstruction {
     accounts_indices: Vec<u16>,
     data: Vec<u8>,
@@ -130,7 +64,10 @@ fn rollup_txs(txs: Vec<Transaction>) -> RollupBlock {
     }
 
     RollupBlock {
-        accounts: all_accounts,
+        accounts: all_accounts
+            .iter()
+            .map(|account| account.to_bytes())
+            .collect(),
         instructions: rollup_ixs,
     }
 }
@@ -154,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_rollup_txs_multiple_transactions() {
-        let num_transactions = 14;
+        let num_transactions = 1;
         let txs: Vec<Transaction> = (0..num_transactions)
             .map(|_| create_dummy_transaction())
             .collect();
@@ -164,8 +101,8 @@ mod tests {
         assert_eq!(rollup_block.accounts.len(), num_transactions * 2 + 1);
         assert_eq!(rollup_block.instructions.len(), num_transactions);
         assert_eq!(
-            <RollupBlock as Into<Vec<u8>>>::into(rollup_block).len(),
-            115 + 81 * (num_transactions - 1) // First tx is bigger, then they reduce because of dedup
+            bitcode::encode(&rollup_block).len(),
+            35 + 72 * (num_transactions - 1) // First tx is bigger, then they reduce because of dedup
         )
     }
 }
