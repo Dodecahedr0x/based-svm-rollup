@@ -1,11 +1,23 @@
 use std::{collections::HashMap, vec};
 
-use bitcode::{Decode, Encode};
+use bincode::{Decode, Encode};
+use merkle_tree::TreeNode;
 use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
 
+/// All the inputs needed to execute a block in the zkSVM
 #[derive(Decode, Encode)]
 pub struct ExecutionInput {
     block: RollupBlock,
+    state: RollupState,
+}
+
+/// The state of the rollup used to execute a rollup block
+/// It uses a sparse Merkle tree to store the state.
+#[derive(Decode, Encode)]
+pub struct RollupState {
+    root: TreeNode,
+    // Map pubkeys to account data
+    accounts: HashMap<[u8; 32], TreeNode>,
 }
 
 /// A rollup block, containing all the accounts used and the sequence of instruction.
@@ -13,6 +25,7 @@ pub struct ExecutionInput {
 /// The concept of transaction is given up for simplicity and compacity.
 #[derive(Decode, Encode)]
 pub struct RollupBlock {
+    // List of accounts pubkeys used
     accounts: Vec<[u8; 32]>,
     instructions: Vec<RollupInstruction>,
 }
@@ -91,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_rollup_txs_multiple_transactions() {
-        let num_transactions = 1;
+        let num_transactions = 11;
         let txs: Vec<Transaction> = (0..num_transactions)
             .map(|_| create_dummy_transaction())
             .collect();
@@ -100,9 +113,11 @@ mod tests {
 
         assert_eq!(rollup_block.accounts.len(), num_transactions * 2 + 1);
         assert_eq!(rollup_block.instructions.len(), num_transactions);
+        let encoded_vec =
+            bincode::encode_to_vec(&rollup_block, bincode::config::standard()).unwrap();
         assert_eq!(
-            bitcode::encode(&rollup_block).len(),
-            35 + 72 * (num_transactions - 1) // First tx is bigger, then they reduce because of dedup
+            encoded_vec.len(),
+            114 + 80 * (num_transactions - 1) // First tx is bigger, then they reduce because of dedup
         )
     }
 }

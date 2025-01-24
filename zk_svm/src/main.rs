@@ -15,7 +15,18 @@ pub fn main() {
     // Read the input of the program.
     // It must contain everything needed to execute the block
     let block_bytes: Vec<u8> = sp1_zkvm::io::read::<Vec<u8>>();
-    let _block: ExecutionInput = bitcode::decode(&block_bytes.clone()).unwrap();
+    let (_block, _): (ExecutionInput, usize) =
+        bincode::decode_from_slice(&block_bytes.clone(), bincode::config::standard()).unwrap();
+
+    // Transform the rollup block back into normal transactions
+
+    // Create the processing context
+
+    // Process transactions
+
+    // Update accounts
+
+    // Update state root
 
     // Encode the public values of the program: state commitments before, after, and the block
     let bytes = vec![block_bytes].concat();

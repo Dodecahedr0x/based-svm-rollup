@@ -171,27 +171,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitcode"
-version = "0.6.3"
+name = "bincode"
+version = "2.0.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee1bce7608560cd4bf0296a4262d0dbf13e6bcec5ff2105724c8ab88cc7fc784"
+checksum = "f11ea1a0346b94ef188834a65c068a03aec181c94896d481d7a0a40d85b0ce95"
 dependencies = [
- "arrayvec",
- "bitcode_derive",
- "bytemuck",
- "glam",
+ "bincode_derive",
  "serde",
 ]
 
 [[package]]
-name = "bitcode_derive"
-version = "0.6.3"
+name = "bincode_derive"
+version = "2.0.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a539389a13af092cd345a2b47ae7dec12deb306d660b2223d25cd3419b253ebe"
+checksum = "7e30759b3b99a1b802a7a3aa21c85c3ded5c28e1c83170d82d70f08bbf7f3e4c"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.96",
+ "virtue",
 ]
 
 [[package]]
@@ -239,7 +234,8 @@ dependencies = [
 name = "block_builder"
 version = "0.1.0"
 dependencies = [
- "bitcode",
+ "bincode 2.0.0-rc.3",
+ "merkle_tree",
  "solana-sdk",
 ]
 
@@ -716,12 +712,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glam"
-version = "0.29.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc46dd3ec48fdd8e693a98d2b8bafae273a2d54c1de02a2a7e3d57d501f39677"
-
-[[package]]
 name = "hashbrown"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -935,6 +925,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "merkle_tree"
+version = "0.1.0"
+dependencies = [
+ "bincode 2.0.0-rc.3",
+ "solana-sdk",
 ]
 
 [[package]]
@@ -1510,7 +1508,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8557558040a6bf34101ea0ded1647bafc21c2a9ea0913034fa6794a304ba6791"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "serde_bytes",
  "serde_derive",
@@ -1524,7 +1522,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abeb32e8dbead1f920a919d8c781fe058cf657313aa237566fa812d2288f2aab"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "solana-program-error",
  "solana-program-memory",
@@ -1546,7 +1544,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e154567b6846f4721c713afdd14c56892800fb940793ef529a68d6db6cf1beef"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "solana-instruction",
 ]
@@ -1699,7 +1697,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af795f16bef3ae76e97978e35724ea88d2b9eba67a9e233adf48ccefeaa6e6b8"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "borsh 1.5.5",
  "getrandom 0.2.15",
  "js-sys",
@@ -1744,7 +1742,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1f8c6e8a2cb0839ef49d8c6e34e89a5bc5ed97da855bf49528bae8c57eb39ed"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "bitflags",
  "cfg_eval",
  "serde",
@@ -1769,7 +1767,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d3a72c5eafd348bc5e5b731b40ad8dfde3023632e34e5ca9e52a655266ffae7"
 dependencies = [
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bitflags",
  "blake3",
  "borsh 0.10.4",
@@ -1939,7 +1937,7 @@ version = "2.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf93cfd5f5af23b59789eba96b6a6afd92a3a18a3fc6652259bfa1f32743caf4"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "bitflags",
  "borsh 1.5.5",
  "bs58",
@@ -2151,7 +2149,7 @@ version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aac3d3deeed25e9cad80e4275faf5954aa63f213ed3422f0e098dd2d0c1b0c0e"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "sp1-primitives",
 ]
@@ -2162,7 +2160,7 @@ version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09b25a09b455dfae9c688da05718b205e8bd4afab36cd912d54639f5d4035815"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "hex",
  "lazy_static",
  "num-bigint",
@@ -2349,6 +2347,12 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "virtue"
+version = "0.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dcc60c0624df774c82a0ef104151231d37da4962957d691c011c852b2473314"
 
 [[package]]
 name = "wasi"
@@ -2548,7 +2552,7 @@ dependencies = [
 name = "zk_svm"
 version = "0.1.0"
 dependencies = [
- "bitcode",
+ "bincode 2.0.0-rc.3",
  "block_builder",
  "solana-sdk",
  "sp1-zkvm",

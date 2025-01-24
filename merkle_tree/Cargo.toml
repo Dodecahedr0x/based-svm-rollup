@@ -1,10 +1,8 @@
 [package]
-name = "zk_svm"
+name = "merkle_tree"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 bincode = { workspace = true }
-sp1-zkvm = { workspace = true }
 solana-sdk = { workspace = true }
-block_builder = { path = "../block_builder" }
