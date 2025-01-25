@@ -1,23 +1,16 @@
+pub mod state;
+
 use std::{collections::HashMap, vec};
 
 use bincode::{Decode, Encode};
-use merkle_tree::TreeNode;
 use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
+use state::RollupState;
 
 /// All the inputs needed to execute a block in the zkSVM
 #[derive(Decode, Encode)]
 pub struct ExecutionInput {
     block: RollupBlock,
     state: RollupState,
-}
-
-/// The state of the rollup used to execute a rollup block
-/// It uses a sparse Merkle tree to store the state.
-#[derive(Decode, Encode)]
-pub struct RollupState {
-    root: TreeNode,
-    // Map pubkeys to account data
-    accounts: HashMap<[u8; 32], TreeNode>,
 }
 
 /// A rollup block, containing all the accounts used and the sequence of instruction.

@@ -10,6 +10,27 @@ pub enum TreeNode {
 }
 
 impl TreeNode {
+    /// Creates a Merkle tree from the list of key account pairs.
+    /// It assumes the list is sorted by keys and the account are wrapped in TreeNode
+    pub fn new_from_entries(entries: Vec<([u8; 32], TreeNode)>) -> Self {
+        // Split nodes in half recursively to create tree levels
+        if entries.len() == 1 {
+            return entries[0].1.clone();
+        }
+
+        let mid = entries.len() / 2;
+        let left_entries = entries[..mid].to_vec();
+        let right_entries = entries[mid..].to_vec();
+
+        let left_node = TreeNode::new_from_entries(left_entries);
+        let right_node = TreeNode::new_from_entries(right_entries);
+
+        let mut branch = TreeNode::Branch(vec![]);
+        branch.insert(vec![left_node, right_node]);
+
+        branch
+    }
+
     /// Inserts a set of children and turns this node into a branch.
     /// Ensuring fan-out is left to the user.
     pub fn insert(&mut self, children: Vec<TreeNode>) {
@@ -34,14 +55,28 @@ impl TreeNode {
             TreeNode::Leaf(data) => keccak::hash(data).to_bytes(),
         }
     }
+
+    pub fn depth(&self) -> u8 {
+        // Right-most branch should be the longest
+        let mut i = 0;
+        let mut node = Some(self);
+        while let Some(TreeNode::Branch(branch)) = node {
+            node = branch.last();
+            i += 1;
+        }
+
+        i
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use solana_sdk::pubkey::Pubkey;
+
     use super::*;
 
     #[test]
-    fn test_create_whole_tree() {
+    fn test_create_whole_tree_manually() {
         // Create leaf nodes
         let leaf1 = TreeNode::Leaf(vec![1, 2, 3]);
         let leaf2 = TreeNode::Leaf(vec![4, 5, 6]);
@@ -79,6 +114,36 @@ mod tests {
         } else {
             panic!("Expected branch node");
         }
+
+        // Check the hash of the root node
+        let root_hash = root.hash();
+        assert_eq!(root_hash.len(), HASH_BYTES);
+        assert_eq!(root.depth(), 2);
+    }
+
+    #[test]
+    fn test_create_whole_tree_automatically() {
+        // Create leaf nodes
+        let leaves = vec![
+            (
+                Pubkey::new_unique().to_bytes(),
+                TreeNode::Leaf(vec![1, 2, 3]),
+            ),
+            (
+                Pubkey::new_unique().to_bytes(),
+                TreeNode::Leaf(vec![4, 5, 6]),
+            ),
+            (
+                Pubkey::new_unique().to_bytes(),
+                TreeNode::Leaf(vec![7, 8, 9]),
+            ),
+            (
+                Pubkey::new_unique().to_bytes(),
+                TreeNode::Digest(TreeNode::Leaf(vec![10, 11, 12]).hash()),
+            ),
+        ];
+
+        let root = TreeNode::new_from_entries(leaves);
 
         // Check the hash of the root node
         let root_hash = root.hash();

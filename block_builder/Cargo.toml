@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 bincode = { workspace = true }
 solana-sdk = { workspace = true }
+solana-account = { workspace = true, features = ["bincode"] }
 merkle_tree = { path = "../merkle_tree" }
