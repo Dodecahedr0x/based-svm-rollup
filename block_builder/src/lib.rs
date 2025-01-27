@@ -9,8 +9,22 @@ use state::RollupState;
 /// All the inputs needed to execute a block in the zkSVM
 #[derive(Decode, Encode)]
 pub struct ExecutionInput {
-    block: RollupBlock,
-    state: RollupState,
+    pub block: RollupBlock,
+    pub state: RollupState,
+}
+
+impl From<Vec<u8>> for ExecutionInput {
+    fn from(value: Vec<u8>) -> Self {
+        bincode::decode_from_slice(&value, bincode::config::standard())
+            .unwrap()
+            .0
+    }
+}
+
+impl Into<Vec<u8>> for ExecutionInput {
+    fn into(self) -> Vec<u8> {
+        bincode::encode_to_vec(self, bincode::config::standard()).unwrap()
+    }
 }
 
 /// A rollup block, containing all the accounts used and the sequence of instruction.
@@ -19,15 +33,30 @@ pub struct ExecutionInput {
 #[derive(Decode, Encode)]
 pub struct RollupBlock {
     // List of accounts pubkeys used
-    accounts: Vec<[u8; 32]>,
-    instructions: Vec<RollupInstruction>,
+    pub accounts: Vec<[u8; 32]>,
+    // TODO: Include txs and verify signatures
+    pub instructions: Vec<RollupInstruction>,
+}
+
+impl From<Vec<u8>> for RollupBlock {
+    fn from(value: Vec<u8>) -> Self {
+        bincode::decode_from_slice(&value, bincode::config::standard())
+            .unwrap()
+            .0
+    }
+}
+
+impl Into<Vec<u8>> for RollupBlock {
+    fn into(self) -> Vec<u8> {
+        bincode::encode_to_vec(self, bincode::config::standard()).unwrap()
+    }
 }
 
 /// A single instruction of a rollup
 #[derive(Decode, Encode)]
 pub struct RollupInstruction {
-    accounts_indices: Vec<u16>,
-    data: Vec<u8>,
+    pub accounts_indices: Vec<u16>,
+    pub data: Vec<u8>,
 }
 
 /// This function takes a vector of transactions and outputs the corresponding rollup block.
@@ -54,16 +83,27 @@ fn rollup_txs(txs: Vec<Transaction>) -> RollupBlock {
     for tx in txs {
         for ix in tx.message.instructions {
             rollup_ixs.push(RollupInstruction {
-                accounts_indices: ix
-                    .accounts
-                    .iter()
-                    .map(|index| {
-                        all_accounts
-                            .iter()
-                            .position(|pk| pk.eq(&tx.message.account_keys[*index as usize]))
-                            .unwrap() as u16
-                    })
-                    .collect(),
+                // Putting the program as the first id
+                accounts_indices: std::iter::once(
+                    all_accounts
+                        .iter()
+                        .position(|pk| {
+                            pk.eq(&tx.message.account_keys[ix.program_id_index as usize])
+                        })
+                        .unwrap() as u16,
+                )
+                .chain(
+                    ix.accounts
+                        .iter()
+                        .filter(|index| **index != ix.program_id_index)
+                        .map(|index| {
+                            all_accounts
+                                .iter()
+                                .position(|pk| pk.eq(&tx.message.account_keys[*index as usize]))
+                                .unwrap() as u16
+                        }),
+                )
+                .collect(),
                 data: ix.data,
             });
         }
@@ -106,8 +146,7 @@ mod tests {
 
         assert_eq!(rollup_block.accounts.len(), num_transactions * 2 + 1);
         assert_eq!(rollup_block.instructions.len(), num_transactions);
-        let encoded_vec =
-            bincode::encode_to_vec(&rollup_block, bincode::config::standard()).unwrap();
+        let encoded_vec: Vec<u8> = rollup_block.into();
         assert_eq!(
             encoded_vec.len(),
             114 + 80 * (num_transactions - 1) // First tx is bigger, then they reduce because of dedup

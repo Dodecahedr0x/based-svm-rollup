@@ -7,4 +7,6 @@ edition = "2021"
 bincode = { workspace = true }
 sp1-zkvm = { workspace = true }
 solana-sdk = { workspace = true }
+solana-runtime = { workspace = true }
 block_builder = { path = "../block_builder" }
+merkle_tree = { path = "../merkle_tree" }
