@@ -29,3 +29,12 @@ The structure of the system is presented in the figure above:
 - Participants will use [Aerius zkSVM](https://github.com/aerius-labs/zkSVM) to execute the transactions of the commited block and generate the proof.
 - The proof can then be verified using [Succint SP1](https://blog.succinct.xyz/solana-sp1/) verifier to ensure that the block is valid and update the validating bridge.
 - Off chain databases can then be updated using the commited transactions. -->
+
+## Reading list
+
+- [Succint's blog about the Solana verifier program](https://blog.succinct.xyz/solana-sp1/)
+- [Succint SP1 repo](https://github.com/succinctlabs/sp1)
+- [Reth Succint Processor](https://github.com/succinctlabs/rsp) (contains a usable zkEVM)
+- [Helius Introduction to ZK Proofs](https://www.helius.dev/blog/zero-knowledge-proofs-an-introduction-to-the-fundamentals)
+- [Helius Applications of ZK Proofs](https://www.helius.dev/blog/zero-knowledge-proofs-its-applications-on-solana)
+- [Soon's Igloo (decoupled SVM)](https://github.com/soonlabs/igloo)
