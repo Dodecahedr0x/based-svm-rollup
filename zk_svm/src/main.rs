@@ -9,14 +9,12 @@
 
 use std::sync::Arc;
 
+use deterministic_svm::InvokeContext;
 use solana_sbpf::{
     memory_region::MemoryMapping,
     program::{BuiltinProgram, SBPFVersion},
     vm::EbpfVm,
 };
-use svm::InvokeContext;
-
-mod svm;
 
 sp1_zkvm::entrypoint!(main);
 

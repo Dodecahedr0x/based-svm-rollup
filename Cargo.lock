@@ -574,6 +574,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "deterministic_svm"
+version = "0.1.0"
+
+[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2640,6 +2644,7 @@ name = "zk_svm"
 version = "0.1.0"
 dependencies = [
  "bincode 2.0.0-rc.3",
+ "deterministic_svm",
  "solana-sbpf",
  "sp1-zkvm",
 ]

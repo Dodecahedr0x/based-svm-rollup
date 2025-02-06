@@ -7,3 +7,4 @@ edition = "2021"
 bincode = { workspace = true }
 sp1-zkvm = { workspace = true }
 solana-sbpf = { workspace = true }
+deterministic_svm = { workspace = true }

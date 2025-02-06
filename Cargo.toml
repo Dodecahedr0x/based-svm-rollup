@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["block_builder", "merkle_tree", "zk_svm"]
+members = ["block_builder", "deterministic_svm", "merkle_tree", "zk_svm"]
 
 [workspace.dependencies]
 solana-account = "2.1.10"
@@ -9,3 +9,4 @@ solana-sdk = "2.1.10"
 solana-sbpf = { git = "https://github.com/Dodecahedr0x/sbpf" }
 sp1-zkvm = "4.0.1"
 bincode = "2.0.0-rc"
+deterministic_svm = { path = "./deterministic_svm" }
