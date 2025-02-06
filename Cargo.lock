@@ -1969,15 +1969,13 @@ checksum = "9677531dd4098d078515c66d69a04bfa0389d364a5c768561c719030b368a9db"
 [[package]]
 name = "solana-sbpf"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66a3ce7a0f4d6830124ceb2c263c36d1ee39444ec70146eb49b939e557e72b96"
+source = "git+https://github.com/Dodecahedr0x/sbpf#78da473a7ff090a263c2d4c235a04aafefe833b8"
 dependencies = [
  "byteorder",
  "combine",
  "hash32",
  "libc",
  "log",
- "rand 0.8.5",
  "rustc-demangle",
  "thiserror",
  "winapi",
