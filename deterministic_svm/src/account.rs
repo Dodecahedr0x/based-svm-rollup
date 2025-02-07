@@ -248,7 +248,10 @@ impl<'a> AccountInfo<'a> {
     pub fn assign(&self, new_owner: &Pubkey) {
         // Set the non-mut owner field
         unsafe {
-            std::ptr::write_volatile(self.owner as *const Pubkey as *mut [u8; 32], *new_owner);
+            std::ptr::write_volatile(
+                self.owner as *const Pubkey as *mut [u8; 32],
+                new_owner.to_bytes(),
+            );
         }
     }
 

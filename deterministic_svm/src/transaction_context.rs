@@ -9,10 +9,9 @@ use std::{
     sync::Arc,
 };
 
-use crate::{Account, InstructionError, Rent};
+use crate::{Account, InstructionError, Pubkey, Rent};
 
 pub const MAX_BASE58_LEN: usize = 44;
-pub const PUBKEY_BYTES: usize = 32;
 // Inlined to avoid solana_system_interface dep
 #[cfg(not(target_os = "solana"))]
 const MAX_PERMITTED_DATA_LENGTH: u64 = 10 * 1024 * 1024;
@@ -25,13 +24,6 @@ const MAX_PERMITTED_ACCOUNTS_DATA_ALLOCATIONS_PER_TRANSACTION: i64 =
 // Inlined to avoid solana_account_info dep
 #[cfg(not(target_os = "solana"))]
 const MAX_PERMITTED_DATA_INCREASE: usize = 1_024 * 10;
-
-pub type Pubkey = [u8; 32];
-pub fn pubkey_from_str(s: &str) -> Pubkey {
-    let mut bytes = [0; PUBKEY_BYTES];
-    let _decoded_size = bs58::decode(s).onto(&mut bytes);
-    bytes
-}
 
 pub type TransactionAccount = (Pubkey, AccountSharedData);
 pub type Epoch = u64;
@@ -1302,7 +1294,7 @@ impl BorrowedAccount<'_> {
             return Err(InstructionError::ModifiedProgramId);
         }
         // don't touch the account if the owner does not change
-        if self.get_owner() == pubkey {
+        if self.get_owner().to_bytes() == pubkey {
             return Ok(());
         }
         self.touch()?;

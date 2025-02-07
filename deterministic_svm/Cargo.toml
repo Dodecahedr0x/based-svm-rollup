@@ -5,13 +5,21 @@ edition = "2021"
 
 [dependencies]
 bincode = { workspace = true }
+base64 = { workspace = true }
 bs58 = { workspace = true }
+bytemuck = { workspace = true }
 byteorder = { workspace = true }
 enum-iterator = { workspace = true }
+ed25519-dalek = { workspace = true }
+five8_const = { workspace = true }
+itertools = { workspace = true }
 lazy_static = { workspace = true }
+libsecp256k1 = { workspace = true }
 log = { workspace = true }
+openssl = { workspace = true }
 num-traits = { workspace = true }
 percentage = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
+sha3 = { workspace = true }
 solana-sbpf = { workspace = true }

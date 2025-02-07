@@ -17,7 +17,10 @@ use solana_sbpf::{
     vm::{Config, EbpfVm},
 };
 
-use crate::{Epoch, InvokeContext, Pubkey};
+use crate::{
+    bpf_loader, bpf_loader_deprecated, bpf_loader_upgradeable, loader_v4, native_loader, Epoch,
+    InvokeContext, Pubkey,
+};
 
 pub const HOST_ALIGN: usize = 16;
 pub const MAX_LOADED_ENTRY_COUNT: usize = 512;
@@ -461,76 +464,6 @@ pub enum ProgramCacheEntryOwner {
     LoaderV2,
     LoaderV3,
     LoaderV4,
-}
-
-pub mod native_loader {
-    use crate::{pubkey_from_str, Pubkey};
-    pub const ID: Pubkey = [
-        5, 135, 132, 191, 20, 139, 164, 40, 47, 176, 18, 87, 72, 136, 169, 241, 83, 160, 125, 173,
-        247, 101, 192, 69, 92, 154, 151, 3, 128, 0, 0, 0,
-    ];
-    pub fn id() -> Pubkey {
-        pubkey_from_str("NativeLoader1111111111111111111111111111111")
-    }
-    pub fn check_id(pk: &Pubkey) -> bool {
-        *pk == ID
-    }
-}
-
-pub mod bpf_loader_deprecated {
-    use crate::{pubkey_from_str, Pubkey};
-    pub const ID: Pubkey = [
-        2, 168, 246, 145, 78, 136, 161, 107, 189, 35, 149, 133, 95, 100, 4, 217, 180, 244, 86, 183,
-        130, 27, 176, 20, 87, 73, 66, 140, 0, 0, 0, 0,
-    ];
-    pub fn id() -> Pubkey {
-        pubkey_from_str("BPFLoader1111111111111111111111111111111111")
-    }
-    pub fn check_id(pk: &Pubkey) -> bool {
-        *pk == ID
-    }
-}
-
-pub mod bpf_loader {
-    use crate::{pubkey_from_str, Pubkey};
-    pub const ID: Pubkey = [
-        2, 168, 246, 145, 78, 136, 161, 110, 57, 90, 225, 40, 148, 143, 250, 105, 86, 147, 55, 104,
-        24, 221, 71, 67, 82, 33, 243, 198, 0, 0, 0, 0,
-    ];
-    pub fn id() -> Pubkey {
-        pubkey_from_str("BPFLoader2111111111111111111111111111111111")
-    }
-    pub fn check_id(pk: &Pubkey) -> bool {
-        *pk == ID
-    }
-}
-
-pub mod bpf_loader_upgradeable {
-    use crate::{pubkey_from_str, Pubkey};
-    pub const ID: Pubkey = [
-        2, 168, 246, 145, 78, 136, 161, 176, 226, 16, 21, 62, 247, 99, 174, 43, 0, 194, 185, 61,
-        22, 193, 36, 210, 192, 83, 122, 16, 4, 128, 0, 0,
-    ];
-    pub fn id() -> Pubkey {
-        pubkey_from_str("BPFLoaderUpgradeab1e11111111111111111111111")
-    }
-    pub fn check_id(pk: &Pubkey) -> bool {
-        *pk == ID
-    }
-}
-
-pub mod loader_v4 {
-    use crate::{pubkey_from_str, Pubkey};
-    pub const ID: Pubkey = [
-        5, 18, 180, 17, 81, 81, 227, 122, 173, 10, 139, 197, 211, 136, 46, 123, 127, 218, 76, 243,
-        210, 192, 40, 200, 207, 131, 54, 24, 0, 0, 0, 0,
-    ];
-    pub fn id() -> Pubkey {
-        pubkey_from_str("LoaderV411111111111111111111111111111111111")
-    }
-    pub fn check_id(pk: &Pubkey) -> bool {
-        *pk == ID
-    }
 }
 
 impl TryFrom<&Pubkey> for ProgramCacheEntryOwner {

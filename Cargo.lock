@@ -558,16 +558,24 @@ dependencies = [
 name = "deterministic_svm"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bincode",
  "bs58",
+ "bytemuck",
  "byteorder",
+ "ed25519-dalek",
  "enum-iterator",
+ "five8_const",
+ "itertools 0.12.1",
  "lazy_static",
+ "libsecp256k1",
  "log",
  "num-traits",
+ "openssl",
  "percentage",
  "serde",
  "sha2 0.10.8",
+ "sha3",
  "solana-sbpf",
 ]
 

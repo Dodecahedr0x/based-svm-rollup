@@ -1,10 +1,17 @@
 mod account;
 mod compute_budget;
 mod environment_config;
+mod feature_set;
 mod instruction;
 mod log_collector;
 mod measure;
 mod program_cache;
+mod program_ids;
+mod pubkey;
+mod solana_ed25519_program;
+mod solana_secp256k1_program;
+mod solana_secp256r1_program;
+mod stable_log;
 mod syscall;
 mod timings;
 mod transaction_context;
@@ -18,19 +25,28 @@ use std::{
     num::Saturating,
     ops::{Index, IndexMut},
     rc::Rc,
+    sync::{atomic::Ordering, Arc},
 };
 
 pub use account::*;
 pub use compute_budget::*;
 use enum_iterator::Sequence;
 pub use environment_config::*;
+pub use feature_set::*;
 pub use instruction::*;
 use lazy_static::lazy_static;
 pub use log_collector::*;
 pub use measure::*;
 use num_traits::FromPrimitive;
 pub use program_cache::*;
-use solana_sbpf::vm::ContextObject;
+pub use program_ids::*;
+pub use pubkey::*;
+use solana_sbpf::{
+    error::{EbpfError, ProgramResult},
+    memory_region::MemoryMapping,
+    program::SBPFVersion,
+    vm::{Config, ContextObject, EbpfVm},
+};
 pub use syscall::*;
 pub use timings::*;
 pub use transaction_context::*;
@@ -765,27 +781,6 @@ impl Precompile {
         feature_set: &FeatureSet,
     ) -> std::result::Result<(), PrecompileError> {
         (self.verify_fn)(data, instruction_datas, feature_set)
-    }
-}
-
-pub mod secp256k1_program {
-    use crate::{pubkey_from_str, Pubkey};
-    pub fn id() -> Pubkey {
-        pubkey_from_str("KeccakSecp256k11111111111111111111111111111")
-    }
-}
-
-pub mod secp256r1_program {
-    use crate::{pubkey_from_str, Pubkey};
-    pub fn id() -> Pubkey {
-        pubkey_from_str("Secp256r1SigVerify1111111111111111111111111")
-    }
-}
-
-pub mod ed25519_program {
-    use crate::{pubkey_from_str, Pubkey};
-    pub fn id() -> Pubkey {
-        pubkey_from_str("Ed25519SigVerify111111111111111111111111111")
     }
 }
 
