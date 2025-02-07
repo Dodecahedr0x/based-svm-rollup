@@ -47,14 +47,14 @@ pub fn main() {
     // });
 
     // Recreate the state
-    let ctx = InvokeContext::new();
-    let mut vm = EbpfVm::new(
-        Arc::new(BuiltinProgram::new_mock()),
-        SBPFVersion::V0,
-        unsafe { std::mem::transmute::<&mut InvokeContext, &mut InvokeContext>(ctx) },
-        MemoryMapping::Identity,
-        4096,
-    );
+    // let ctx = InvokeContext::new();
+    // let mut vm = EbpfVm::new(
+    //     Arc::new(BuiltinProgram::new_mock()),
+    //     SBPFVersion::V0,
+    //     unsafe { std::mem::transmute::<&mut InvokeContext, &mut InvokeContext>(ctx) },
+    //     MemoryMapping::Identity,
+    //     4096,
+    // );
     // let mut svm = LiteSVM::new();
 
     // Process transactions
