@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ark-bn254 = { workspace = true }
+ark-ec = { workspace = true }
+ark-ff = { workspace = true }
+ark-serialize = { workspace = true }
 bincode = { workspace = true }
 base64 = { workspace = true }
 blake3 = { workspace = true }
@@ -17,10 +21,13 @@ five8_const = { workspace = true }
 itertools = { workspace = true }
 lazy_static = { workspace = true }
 libsecp256k1 = { workspace = true }
+light-poseidon = { workspace = true }
 log = { workspace = true }
 openssl = { workspace = true }
+num-bigint = { workspace = true }
 num-traits = { workspace = true }
 percentage = { workspace = true }
+scopeguard = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }

@@ -1,6 +1,6 @@
 #![allow(clippy::arithmetic_side_effects)]
 
-use crate::{DecodeError, Sanitize};
+use crate::{solana_sha256_hasher, DecodeError, Sanitize};
 use std::sync::atomic::{self, AtomicU64};
 use {
     core::{
@@ -278,7 +278,7 @@ impl Pubkey {
             return Err(PubkeyError::InvalidSeeds);
         }
 
-        Ok(Pubkey::from(hash.to_bytes()))
+        Ok(Pubkey::from(hash))
     }
 }
 
@@ -391,6 +391,15 @@ macro_rules! declare_deprecated_id {
             assert!(check_id(&id()));
         }
     };
+}
+
+pub fn bytes_are_curve_point<T: AsRef<[u8]>>(_bytes: T) -> bool {
+    let Ok(compressed_edwards_y) =
+        curve25519_dalek::edwards::CompressedEdwardsY::from_slice(_bytes.as_ref())
+    else {
+        return false;
+    };
+    compressed_edwards_y.decompress().is_some()
 }
 
 /// Convenience macro to define a static public key.

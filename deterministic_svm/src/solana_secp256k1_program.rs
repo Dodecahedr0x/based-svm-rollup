@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sha3::digest::Digest;
+use thiserror::Error;
 
 use crate::{FeatureSet, PrecompileError};
 
@@ -7,6 +8,37 @@ pub const HASHED_PUBKEY_SERIALIZED_SIZE: usize = 20;
 pub const SIGNATURE_SERIALIZED_SIZE: usize = 64;
 pub const SIGNATURE_OFFSETS_SERIALIZED_SIZE: usize = 11;
 pub const DATA_START: usize = SIGNATURE_OFFSETS_SERIALIZED_SIZE + 1;
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum Secp256k1RecoverError {
+    #[error("The hash provided to a secp256k1_recover is invalid")]
+    InvalidHash,
+    #[error("The recovery_id provided to a secp256k1_recover is invalid")]
+    InvalidRecoveryId,
+    #[error("The signature provided to a secp256k1_recover is invalid")]
+    InvalidSignature,
+}
+
+impl From<u64> for Secp256k1RecoverError {
+    fn from(v: u64) -> Secp256k1RecoverError {
+        match v {
+            1 => Secp256k1RecoverError::InvalidHash,
+            2 => Secp256k1RecoverError::InvalidRecoveryId,
+            3 => Secp256k1RecoverError::InvalidSignature,
+            _ => panic!("Unsupported Secp256k1RecoverError"),
+        }
+    }
+}
+
+impl From<Secp256k1RecoverError> for u64 {
+    fn from(v: Secp256k1RecoverError) -> u64 {
+        match v {
+            Secp256k1RecoverError::InvalidHash => 1,
+            Secp256k1RecoverError::InvalidRecoveryId => 2,
+            Secp256k1RecoverError::InvalidSignature => 3,
+        }
+    }
+}
 
 /// Offsets of signature data within a secp256k1 instruction.
 ///

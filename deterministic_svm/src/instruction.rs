@@ -433,3 +433,12 @@ impl From<LamportsError> for InstructionError {
         }
     }
 }
+
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ProcessedSiblingInstruction {
+    /// Length of the instruction data
+    pub data_len: u64,
+    /// Number of AccountMeta structures
+    pub accounts_len: u64,
+}

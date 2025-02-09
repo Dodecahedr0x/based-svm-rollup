@@ -13,13 +13,20 @@ use std::{
     sync::Arc,
 };
 use thiserror::Error as ThisError;
+use {
+    num_bigint::BigUint,
+    num_traits::{One, Zero},
+};
 
 use crate::{
-    blake3,
+    blake3, cpi_common,
     features::{self, *},
-    ic_logger_msg, is_nonoverlapping, keccak, stable_log, ComputeBudget, FeatureSet, Hash, Hasher,
-    InstructionError, InvokeContext, Pubkey, PubkeyError, SerializedAccountMetadata, Sysvar,
-    SysvarId, MAX_SEEDS, MAX_SEED_LEN, PUBKEY_BYTES, SUCCESS,
+    ic_logger_msg, is_nonoverlapping, keccak,
+    solana_secp256k1_program::{self, Secp256k1RecoverError},
+    stable_log, AccountMeta, ComputeBudget, FeatureSet, Hash, Hasher, InstructionError,
+    InvokeContext, ProcessedSiblingInstruction, ProgramError, Pubkey, PubkeyError,
+    SerializedAccountMetadata, Sysvar, SysvarId, MAX_RETURN_DATA, MAX_SEEDS, MAX_SEED_LEN,
+    PUBKEY_BYTES, SUCCESS,
 };
 
 pub const BPF_ALIGN_OF_U128: usize = 8;
@@ -211,6 +218,38 @@ pub fn morph_into_deployment_environment_v1(
 
     Ok(BuiltinProgram::new_loader(config, result))
 }
+
+#[macro_export]
+macro_rules! impl_sysvar_get {
+    ($syscall_name:ident) => {
+        fn get() -> Result<Self, $crate::ProgramError> {
+            let mut var = Self::default();
+            let var_addr = &mut var as *mut _ as *mut u8;
+
+            let result = $crate::program_stubs::$syscall_name(var_addr);
+
+            match result {
+                $crate::SUCCESS => Ok(var),
+                e => Err(e.into()),
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_sysvar_id(
+    ($type:ty) => {
+        impl $crate::SysvarId for $type {
+            fn id() -> $crate::Pubkey {
+                id()
+            }
+
+            fn check_id(pubkey: &$crate::Pubkey) -> bool {
+                check_id(pubkey)
+            }
+        }
+    }
+);
 
 fn get_sysvar<T: std::fmt::Debug + Sysvar + SysvarId + Clone>(
     sysvar: Result<Arc<T>, InstructionError>,
@@ -696,6 +735,34 @@ fn translate_and_check_program_address_inputs<'a>(
     Ok((seeds, program_id))
 }
 
+#[repr(C)]
+pub struct BigModExpParams {
+    pub base: *const u8,
+    pub base_len: u64,
+    pub exponent: *const u8,
+    pub exponent_len: u64,
+    pub modulus: *const u8,
+    pub modulus_len: u64,
+}
+
+/// Big integer modular exponentiation
+pub fn big_mod_exp(base: &[u8], exponent: &[u8], modulus: &[u8]) -> Vec<u8> {
+    let modulus_len = modulus.len();
+    let base = BigUint::from_bytes_be(base);
+    let exponent = BigUint::from_bytes_be(exponent);
+    let modulus = BigUint::from_bytes_be(modulus);
+
+    if modulus.is_zero() || modulus.is_one() {
+        return vec![0_u8; modulus_len];
+    }
+
+    let ret_int = base.modpow(&exponent, &modulus);
+    let ret_int = ret_int.to_bytes_be();
+    let mut return_value = vec![0_u8; modulus_len.saturating_sub(ret_int.len())];
+    return_value.extend(ret_int);
+    return_value
+}
+
 pub fn create_program_runtime_environment_v1<'a>(
     feature_set: &FeatureSet,
     compute_budget: &ComputeBudget,
@@ -921,14 +988,14 @@ pub fn create_program_runtime_environment_v1<'a>(
     Ok(BuiltinProgram::new_loader(config, result))
 }
 
-fn address_is_aligned<T>(address: u64) -> bool {
+pub fn address_is_aligned<T>(address: u64) -> bool {
     (address as *mut T as usize)
         .checked_rem(align_of::<T>())
         .map(|rem| rem == 0)
         .expect("T to be non-zero aligned")
 }
 
-fn translate(
+pub fn translate(
     memory_mapping: &MemoryMapping,
     access_type: AccessType,
     vm_addr: u64,
@@ -940,7 +1007,7 @@ fn translate(
         .into()
 }
 
-fn translate_type_inner<'a, T>(
+pub fn translate_type_inner<'a, T>(
     memory_mapping: &MemoryMapping,
     access_type: AccessType,
     vm_addr: u64,
@@ -955,14 +1022,14 @@ fn translate_type_inner<'a, T>(
         Ok(unsafe { &mut *(host_addr as *mut T) })
     }
 }
-fn translate_type_mut<'a, T>(
+pub fn translate_type_mut<'a, T>(
     memory_mapping: &MemoryMapping,
     vm_addr: u64,
     check_aligned: bool,
 ) -> Result<&'a mut T, Error> {
     translate_type_inner::<T>(memory_mapping, AccessType::Store, vm_addr, check_aligned)
 }
-fn translate_type<'a, T>(
+pub fn translate_type<'a, T>(
     memory_mapping: &MemoryMapping,
     vm_addr: u64,
     check_aligned: bool,
@@ -971,7 +1038,7 @@ fn translate_type<'a, T>(
         .map(|value| &*value)
 }
 
-fn translate_slice_inner<'a, T>(
+pub fn translate_slice_inner<'a, T>(
     memory_mapping: &MemoryMapping,
     access_type: AccessType,
     vm_addr: u64,
@@ -994,7 +1061,7 @@ fn translate_slice_inner<'a, T>(
     }
     Ok(unsafe { from_raw_parts_mut(host_addr as *mut T, len as usize) })
 }
-fn translate_slice_mut<'a, T>(
+pub fn translate_slice_mut<'a, T>(
     memory_mapping: &MemoryMapping,
     vm_addr: u64,
     len: u64,
@@ -1008,7 +1075,7 @@ fn translate_slice_mut<'a, T>(
         check_aligned,
     )
 }
-fn translate_slice<'a, T>(
+pub fn translate_slice<'a, T>(
     memory_mapping: &MemoryMapping,
     vm_addr: u64,
     len: u64,
@@ -1026,7 +1093,7 @@ fn translate_slice<'a, T>(
 
 /// Take a virtual pointer to a string (points to SBF VM memory space), translate it
 /// pass it to a user-defined work function
-fn translate_string_and_do(
+pub fn translate_string_and_do(
     memory_mapping: &MemoryMapping,
     addr: u64,
     len: u64,
@@ -1409,13 +1476,13 @@ declare_builtin_function!(
         let signature = translate_slice::<u8>(
             memory_mapping,
             signature_addr,
-            SECP256K1_SIGNATURE_LENGTH as u64,
+            solana_secp256k1_program::SIGNATURE_SERIALIZED_SIZE as u64,
             invoke_context.get_check_aligned(),
         )?;
         let secp256k1_recover_result = translate_slice_mut::<u8>(
             memory_mapping,
             result_addr,
-            SECP256K1_PUBLIC_KEY_LENGTH as u64,
+            solana_secp256k1_program::SIGNATURE_SERIALIZED_SIZE as u64,
             invoke_context.get_check_aligned(),
         )?;
 
@@ -1458,7 +1525,7 @@ declare_builtin_function!(
         _arg5: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
-        use solana_curve25519::{curve_syscall_traits::*, edwards, ristretto};
+        use crate::solana_ed25519_program::{target_arch::*, CURVE25519_EDWARDS, *};
         match curve_id {
             CURVE25519_EDWARDS => {
                 let cost = invoke_context
@@ -1466,13 +1533,13 @@ declare_builtin_function!(
                     .curve25519_edwards_validate_point_cost;
                 consume_compute_meter(invoke_context, cost)?;
 
-                let point = translate_type::<edwards::PodEdwardsPoint>(
+                let point = translate_type::<PodEdwardsPoint>(
                     memory_mapping,
                     point_addr,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                if edwards::validate_edwards(point) {
+                if validate_edwards(point) {
                     Ok(0)
                 } else {
                     Ok(1)
@@ -1484,13 +1551,13 @@ declare_builtin_function!(
                     .curve25519_ristretto_validate_point_cost;
                 consume_compute_meter(invoke_context, cost)?;
 
-                let point = translate_type::<ristretto::PodRistrettoPoint>(
+                let point = translate_type::<PodRistrettoPoint>(
                     memory_mapping,
                     point_addr,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                if ristretto::validate_ristretto(point) {
+                if validate_ristretto(point) {
                     Ok(0)
                 } else {
                     Ok(1)
@@ -1524,7 +1591,7 @@ declare_builtin_function!(
         result_point_addr: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
-        use solana_curve25519::{curve_syscall_traits::*, edwards, ristretto, scalar};
+        use crate::solana_ed25519_program::{target_arch::*, CURVE25519_EDWARDS, *};
         match curve_id {
             CURVE25519_EDWARDS => match group_op {
                 ADD => {
@@ -1533,19 +1600,19 @@ declare_builtin_function!(
                         .curve25519_edwards_add_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let left_point = translate_type::<edwards::PodEdwardsPoint>(
+                    let left_point = translate_type::<PodEdwardsPoint>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let right_point = translate_type::<edwards::PodEdwardsPoint>(
+                    let right_point = translate_type::<PodEdwardsPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) = edwards::add_edwards(left_point, right_point) {
-                        *translate_type_mut::<edwards::PodEdwardsPoint>(
+                    if let Some(result_point) = add_edwards(left_point, right_point) {
+                        *translate_type_mut::<PodEdwardsPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1561,19 +1628,19 @@ declare_builtin_function!(
                         .curve25519_edwards_subtract_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let left_point = translate_type::<edwards::PodEdwardsPoint>(
+                    let left_point = translate_type::<PodEdwardsPoint>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let right_point = translate_type::<edwards::PodEdwardsPoint>(
+                    let right_point = translate_type::<PodEdwardsPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) = edwards::subtract_edwards(left_point, right_point) {
-                        *translate_type_mut::<edwards::PodEdwardsPoint>(
+                    if let Some(result_point) = subtract_edwards(left_point, right_point) {
+                        *translate_type_mut::<PodEdwardsPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1589,19 +1656,19 @@ declare_builtin_function!(
                         .curve25519_edwards_multiply_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let scalar = translate_type::<scalar::PodScalar>(
+                    let scalar = translate_type::<PodScalar>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let input_point = translate_type::<edwards::PodEdwardsPoint>(
+                    let input_point = translate_type::<PodEdwardsPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) = edwards::multiply_edwards(scalar, input_point) {
-                        *translate_type_mut::<edwards::PodEdwardsPoint>(
+                    if let Some(result_point) = multiply_edwards(scalar, input_point) {
+                        *translate_type_mut::<PodEdwardsPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1630,19 +1697,19 @@ declare_builtin_function!(
                         .curve25519_ristretto_add_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let left_point = translate_type::<ristretto::PodRistrettoPoint>(
+                    let left_point = translate_type::<PodRistrettoPoint>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let right_point = translate_type::<ristretto::PodRistrettoPoint>(
+                    let right_point = translate_type::<PodRistrettoPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) = ristretto::add_ristretto(left_point, right_point) {
-                        *translate_type_mut::<ristretto::PodRistrettoPoint>(
+                    if let Some(result_point) = add_ristretto(left_point, right_point) {
+                        *translate_type_mut::<PodRistrettoPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1658,21 +1725,19 @@ declare_builtin_function!(
                         .curve25519_ristretto_subtract_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let left_point = translate_type::<ristretto::PodRistrettoPoint>(
+                    let left_point = translate_type::<PodRistrettoPoint>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let right_point = translate_type::<ristretto::PodRistrettoPoint>(
+                    let right_point = translate_type::<PodRistrettoPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) =
-                        ristretto::subtract_ristretto(left_point, right_point)
-                    {
-                        *translate_type_mut::<ristretto::PodRistrettoPoint>(
+                    if let Some(result_point) = subtract_ristretto(left_point, right_point) {
+                        *translate_type_mut::<PodRistrettoPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1688,19 +1753,19 @@ declare_builtin_function!(
                         .curve25519_ristretto_multiply_cost;
                     consume_compute_meter(invoke_context, cost)?;
 
-                    let scalar = translate_type::<scalar::PodScalar>(
+                    let scalar = translate_type::<PodScalar>(
                         memory_mapping,
                         left_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
-                    let input_point = translate_type::<ristretto::PodRistrettoPoint>(
+                    let input_point = translate_type::<PodRistrettoPoint>(
                         memory_mapping,
                         right_input_addr,
                         invoke_context.get_check_aligned(),
                     )?;
 
-                    if let Some(result_point) = ristretto::multiply_ristretto(scalar, input_point) {
-                        *translate_type_mut::<ristretto::PodRistrettoPoint>(
+                    if let Some(result_point) = multiply_ristretto(scalar, input_point) {
+                        *translate_type_mut::<PodRistrettoPoint>(
                             memory_mapping,
                             result_point_addr,
                             invoke_context.get_check_aligned(),
@@ -1750,7 +1815,7 @@ declare_builtin_function!(
         result_point_addr: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
-        use solana_curve25519::{curve_syscall_traits::*, edwards, ristretto, scalar};
+        use crate::solana_ed25519_program::{target_arch::*, CURVE25519_EDWARDS, *};
 
         if points_len > 512 {
             return Err(Box::new(SyscallError::InvalidLength));
@@ -1769,22 +1834,22 @@ declare_builtin_function!(
                     );
                 consume_compute_meter(invoke_context, cost)?;
 
-                let scalars = translate_slice::<scalar::PodScalar>(
+                let scalars = translate_slice::<PodScalar>(
                     memory_mapping,
                     scalars_addr,
                     points_len,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                let points = translate_slice::<edwards::PodEdwardsPoint>(
+                let points = translate_slice::<PodEdwardsPoint>(
                     memory_mapping,
                     points_addr,
                     points_len,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                if let Some(result_point) = edwards::multiscalar_multiply_edwards(scalars, points) {
-                    *translate_type_mut::<edwards::PodEdwardsPoint>(
+                if let Some(result_point) = multiscalar_multiply_edwards(scalars, points) {
+                    *translate_type_mut::<PodEdwardsPoint>(
                         memory_mapping,
                         result_point_addr,
                         invoke_context.get_check_aligned(),
@@ -1807,24 +1872,22 @@ declare_builtin_function!(
                     );
                 consume_compute_meter(invoke_context, cost)?;
 
-                let scalars = translate_slice::<scalar::PodScalar>(
+                let scalars = translate_slice::<PodScalar>(
                     memory_mapping,
                     scalars_addr,
                     points_len,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                let points = translate_slice::<ristretto::PodRistrettoPoint>(
+                let points = translate_slice::<PodRistrettoPoint>(
                     memory_mapping,
                     points_addr,
                     points_len,
                     invoke_context.get_check_aligned(),
                 )?;
 
-                if let Some(result_point) =
-                    ristretto::multiscalar_multiply_ristretto(scalars, points)
-                {
-                    *translate_type_mut::<ristretto::PodRistrettoPoint>(
+                if let Some(result_point) = multiscalar_multiply_ristretto(scalars, points) {
+                    *translate_type_mut::<PodRistrettoPoint>(
                         memory_mapping,
                         result_point_addr,
                         invoke_context.get_check_aligned(),
@@ -2131,7 +2194,9 @@ declare_builtin_function!(
         _arg5: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
-        use solana_bn254::prelude::{ALT_BN128_ADD, ALT_BN128_MUL, ALT_BN128_PAIRING};
+        use crate::solana_bn254::prelude::{ALT_BN128_ADD, ALT_BN128_MUL, ALT_BN128_PAIRING, ALT_BN128_ADDITION_OUTPUT_LEN,
+            ALT_BN128_MULTIPLICATION_OUTPUT_LEN, ALT_BN128_PAIRING_ELEMENT_LEN, ALT_BN128_PAIRING_OUTPUT_LEN, alt_bn128_addition,
+            alt_bn128_multiplication, alt_bn128_pairing, AltBn128Error};
         let budget = invoke_context.get_compute_budget();
         let (cost, output): (u64, usize) = match group_op {
             ALT_BN128_ADD => (
@@ -2190,7 +2255,7 @@ declare_builtin_function!(
 
         let simplify_alt_bn128_syscall_error_codes = invoke_context
             .get_feature_set()
-            .is_active(&feature_set::simplify_alt_bn128_syscall_error_codes::id());
+            .is_active(&features::simplify_alt_bn128_syscall_error_codes::id());
 
         let result_point = match calculation(input) {
             Ok(result_point) => result_point,
@@ -2302,6 +2367,7 @@ declare_builtin_function!(
         result_addr: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
+        use crate::{ic_msg, poseidon};
         let parameters: poseidon::Parameters = parameters.try_into()?;
         let endianness: poseidon::Endianness = endianness.try_into()?;
 
@@ -2350,7 +2416,7 @@ declare_builtin_function!(
 
         let simplify_alt_bn128_syscall_error_codes = invoke_context
             .get_feature_set()
-            .is_active(&feature_set::simplify_alt_bn128_syscall_error_codes::id());
+            .is_active(&features::simplify_alt_bn128_syscall_error_codes::id());
 
         let hash = match poseidon::hashv(parameters, endianness, inputs.as_slice()) {
             Ok(hash) => hash,
@@ -2383,7 +2449,7 @@ declare_builtin_function!(
         let budget = invoke_context.get_compute_budget();
         consume_compute_meter(invoke_context, budget.syscall_base_cost)?;
 
-        use solana_rbpf::vm::ContextObject;
+        use solana_sbpf::vm::ContextObject;
         Ok(invoke_context.get_remaining())
     }
 );
@@ -2400,7 +2466,7 @@ declare_builtin_function!(
         _arg5: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
-        use solana_bn254::compression::prelude::{
+        use crate::solana_bn254::prelude::{
             alt_bn128_g1_compress, alt_bn128_g1_decompress, alt_bn128_g2_compress,
             alt_bn128_g2_decompress, ALT_BN128_G1_COMPRESS, ALT_BN128_G1_DECOMPRESS,
             ALT_BN128_G2_COMPRESS, ALT_BN128_G2_DECOMPRESS, G1, G1_COMPRESSED, G2, G2_COMPRESSED,
@@ -2445,7 +2511,7 @@ declare_builtin_function!(
 
         let simplify_alt_bn128_syscall_error_codes = invoke_context
             .get_feature_set()
-            .is_active(&feature_set::simplify_alt_bn128_syscall_error_codes::id());
+            .is_active(&features::simplify_alt_bn128_syscall_error_codes::id());
 
         match op {
             ALT_BN128_G1_COMPRESS => {
@@ -2521,6 +2587,7 @@ declare_builtin_function!(
         _arg5: u64,
         memory_mapping: &mut MemoryMapping,
     ) -> Result<u64, Error> {
+        use crate::ic_msg;
         let compute_budget = invoke_context.get_compute_budget();
         let hash_base_cost = H::get_base_cost(compute_budget);
         let hash_byte_cost = H::get_byte_cost(compute_budget);
@@ -2606,7 +2673,7 @@ declare_builtin_function!(
             //     - Compute budget is exceeded.
             // - Otherwise, the syscall returns a `u64` integer representing the total active
             //   stake on the cluster for the current epoch.
-            Ok(invoke_context.get_epoch_total_stake().unwrap_or(0))
+            Ok(invoke_context.get_epoch_total_stake())
         } else {
             // As specified by SIMD-0133: If `var_addr` is _not_ a null pointer:
             //
@@ -2638,16 +2705,7 @@ declare_builtin_function!(
             let check_aligned = invoke_context.get_check_aligned();
             let vote_address = translate_type::<Pubkey>(memory_mapping, var_addr, check_aligned)?;
 
-            Ok(
-                if let Some(vote_accounts) = invoke_context.get_epoch_vote_accounts() {
-                    vote_accounts
-                        .get(vote_address)
-                        .map(|(stake, _)| *stake)
-                        .unwrap_or(0)
-                } else {
-                    0
-                },
-            )
+            Ok(invoke_context.get_epoch_vote_account_stake(vote_address))
         }
     }
 );

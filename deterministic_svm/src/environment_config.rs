@@ -3,7 +3,14 @@ use std::{cmp::Ordering, fmt, sync::Arc};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{program_ids::sysvar, AccountInfo, Epoch, FeatureSet, InstructionError, Pubkey, Slot};
+use crate::{
+    program_ids::sysvar,
+    sysvar::{
+        clock, epoch_rewards, epoch_schedule, fees, last_restart_slot, rent, slot_hashes,
+        stake_history,
+    },
+    *,
+};
 
 pub const MAX_ENTRIES: usize = 512;
 // inlined to avoid solana_clock dep
@@ -84,7 +91,7 @@ impl<'a> EnvironmentConfig<'a> {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct EpochSchedule {
     /// The maximum number of slots in each epoch.
     pub slots_per_epoch: u64,
@@ -405,6 +412,8 @@ pub trait SysvarId {
     fn check_id(pubkey: &Pubkey) -> bool;
 }
 
+pub type ProgramResult = std::result::Result<(), ProgramError>;
+
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum ProgramError {
     /// Allows on-chain programs to implement program-specific error types and see them returned
@@ -493,6 +502,193 @@ impl fmt::Display for ProgramError {
              => f.write_str("Account is immutable"),
             ProgramError::IncorrectAuthority
              => f.write_str("Incorrect authority provided"),
+        }
+    }
+}
+
+pub trait PrintProgramError {
+    fn print<E>(&self)
+    where
+        E: 'static + std::error::Error + DecodeError<E> + PrintProgramError + FromPrimitive;
+}
+
+impl PrintProgramError for ProgramError {
+    fn print<E>(&self)
+    where
+        E: 'static + std::error::Error + DecodeError<E> + PrintProgramError + FromPrimitive,
+    {
+        match self {
+            Self::Custom(error) => {
+                if let Some(custom_error) = E::decode_custom_error_to_enum(*error) {
+                    custom_error.print::<E>();
+                } else {
+                    msg!("Error: Unknown");
+                }
+            }
+            Self::InvalidArgument => msg!("Error: InvalidArgument"),
+            Self::InvalidInstructionData => msg!("Error: InvalidInstructionData"),
+            Self::InvalidAccountData => msg!("Error: InvalidAccountData"),
+            Self::AccountDataTooSmall => msg!("Error: AccountDataTooSmall"),
+            Self::InsufficientFunds => msg!("Error: InsufficientFunds"),
+            Self::IncorrectProgramId => msg!("Error: IncorrectProgramId"),
+            Self::MissingRequiredSignature => msg!("Error: MissingRequiredSignature"),
+            Self::AccountAlreadyInitialized => msg!("Error: AccountAlreadyInitialized"),
+            Self::UninitializedAccount => msg!("Error: UninitializedAccount"),
+            Self::NotEnoughAccountKeys => msg!("Error: NotEnoughAccountKeys"),
+            Self::AccountBorrowFailed => msg!("Error: AccountBorrowFailed"),
+            Self::MaxSeedLengthExceeded => msg!("Error: MaxSeedLengthExceeded"),
+            Self::InvalidSeeds => msg!("Error: InvalidSeeds"),
+            Self::BorshIoError(_) => msg!("Error: BorshIoError"),
+            Self::AccountNotRentExempt => msg!("Error: AccountNotRentExempt"),
+            Self::UnsupportedSysvar => msg!("Error: UnsupportedSysvar"),
+            Self::IllegalOwner => msg!("Error: IllegalOwner"),
+            Self::MaxAccountsDataAllocationsExceeded => {
+                msg!("Error: MaxAccountsDataAllocationsExceeded")
+            }
+            Self::InvalidRealloc => msg!("Error: InvalidRealloc"),
+            Self::MaxInstructionTraceLengthExceeded => {
+                msg!("Error: MaxInstructionTraceLengthExceeded")
+            }
+            Self::BuiltinProgramsMustConsumeComputeUnits => {
+                msg!("Error: BuiltinProgramsMustConsumeComputeUnits")
+            }
+            Self::InvalidAccountOwner => msg!("Error: InvalidAccountOwner"),
+            Self::ArithmeticOverflow => msg!("Error: ArithmeticOverflow"),
+            Self::Immutable => msg!("Error: Immutable"),
+            Self::IncorrectAuthority => msg!("Error: IncorrectAuthority"),
+        }
+    }
+}
+
+impl From<ProgramError> for u64 {
+    fn from(error: ProgramError) -> Self {
+        match error {
+            ProgramError::InvalidArgument => INVALID_ARGUMENT,
+            ProgramError::InvalidInstructionData => INVALID_INSTRUCTION_DATA,
+            ProgramError::InvalidAccountData => INVALID_ACCOUNT_DATA,
+            ProgramError::AccountDataTooSmall => ACCOUNT_DATA_TOO_SMALL,
+            ProgramError::InsufficientFunds => INSUFFICIENT_FUNDS,
+            ProgramError::IncorrectProgramId => INCORRECT_PROGRAM_ID,
+            ProgramError::MissingRequiredSignature => MISSING_REQUIRED_SIGNATURES,
+            ProgramError::AccountAlreadyInitialized => ACCOUNT_ALREADY_INITIALIZED,
+            ProgramError::UninitializedAccount => UNINITIALIZED_ACCOUNT,
+            ProgramError::NotEnoughAccountKeys => NOT_ENOUGH_ACCOUNT_KEYS,
+            ProgramError::AccountBorrowFailed => ACCOUNT_BORROW_FAILED,
+            ProgramError::MaxSeedLengthExceeded => MAX_SEED_LENGTH_EXCEEDED,
+            ProgramError::InvalidSeeds => INVALID_SEEDS,
+            ProgramError::BorshIoError(_) => BORSH_IO_ERROR,
+            ProgramError::AccountNotRentExempt => ACCOUNT_NOT_RENT_EXEMPT,
+            ProgramError::UnsupportedSysvar => UNSUPPORTED_SYSVAR,
+            ProgramError::IllegalOwner => ILLEGAL_OWNER,
+            ProgramError::MaxAccountsDataAllocationsExceeded => {
+                MAX_ACCOUNTS_DATA_ALLOCATIONS_EXCEEDED
+            }
+            ProgramError::InvalidRealloc => INVALID_ACCOUNT_DATA_REALLOC,
+            ProgramError::MaxInstructionTraceLengthExceeded => {
+                MAX_INSTRUCTION_TRACE_LENGTH_EXCEEDED
+            }
+            ProgramError::BuiltinProgramsMustConsumeComputeUnits => {
+                BUILTIN_PROGRAMS_MUST_CONSUME_COMPUTE_UNITS
+            }
+            ProgramError::InvalidAccountOwner => INVALID_ACCOUNT_OWNER,
+            ProgramError::ArithmeticOverflow => ARITHMETIC_OVERFLOW,
+            ProgramError::Immutable => IMMUTABLE,
+            ProgramError::IncorrectAuthority => INCORRECT_AUTHORITY,
+            ProgramError::Custom(error) => {
+                if error == 0 {
+                    CUSTOM_ZERO
+                } else {
+                    error as u64
+                }
+            }
+        }
+    }
+}
+
+impl From<u64> for ProgramError {
+    fn from(error: u64) -> Self {
+        match error {
+            CUSTOM_ZERO => Self::Custom(0),
+            INVALID_ARGUMENT => Self::InvalidArgument,
+            INVALID_INSTRUCTION_DATA => Self::InvalidInstructionData,
+            INVALID_ACCOUNT_DATA => Self::InvalidAccountData,
+            ACCOUNT_DATA_TOO_SMALL => Self::AccountDataTooSmall,
+            INSUFFICIENT_FUNDS => Self::InsufficientFunds,
+            INCORRECT_PROGRAM_ID => Self::IncorrectProgramId,
+            MISSING_REQUIRED_SIGNATURES => Self::MissingRequiredSignature,
+            ACCOUNT_ALREADY_INITIALIZED => Self::AccountAlreadyInitialized,
+            UNINITIALIZED_ACCOUNT => Self::UninitializedAccount,
+            NOT_ENOUGH_ACCOUNT_KEYS => Self::NotEnoughAccountKeys,
+            ACCOUNT_BORROW_FAILED => Self::AccountBorrowFailed,
+            MAX_SEED_LENGTH_EXCEEDED => Self::MaxSeedLengthExceeded,
+            INVALID_SEEDS => Self::InvalidSeeds,
+            BORSH_IO_ERROR => Self::BorshIoError("Unknown".to_string()),
+            ACCOUNT_NOT_RENT_EXEMPT => Self::AccountNotRentExempt,
+            UNSUPPORTED_SYSVAR => Self::UnsupportedSysvar,
+            ILLEGAL_OWNER => Self::IllegalOwner,
+            MAX_ACCOUNTS_DATA_ALLOCATIONS_EXCEEDED => Self::MaxAccountsDataAllocationsExceeded,
+            INVALID_ACCOUNT_DATA_REALLOC => Self::InvalidRealloc,
+            MAX_INSTRUCTION_TRACE_LENGTH_EXCEEDED => Self::MaxInstructionTraceLengthExceeded,
+            BUILTIN_PROGRAMS_MUST_CONSUME_COMPUTE_UNITS => {
+                Self::BuiltinProgramsMustConsumeComputeUnits
+            }
+            INVALID_ACCOUNT_OWNER => Self::InvalidAccountOwner,
+            ARITHMETIC_OVERFLOW => Self::ArithmeticOverflow,
+            IMMUTABLE => Self::Immutable,
+            INCORRECT_AUTHORITY => Self::IncorrectAuthority,
+            _ => Self::Custom(error as u32),
+        }
+    }
+}
+
+impl TryFrom<InstructionError> for ProgramError {
+    type Error = InstructionError;
+
+    fn try_from(error: InstructionError) -> Result<Self, Self::Error> {
+        match error {
+            Self::Error::Custom(err) => Ok(Self::Custom(err)),
+            Self::Error::InvalidArgument => Ok(Self::InvalidArgument),
+            Self::Error::InvalidInstructionData => Ok(Self::InvalidInstructionData),
+            Self::Error::InvalidAccountData => Ok(Self::InvalidAccountData),
+            Self::Error::AccountDataTooSmall => Ok(Self::AccountDataTooSmall),
+            Self::Error::InsufficientFunds => Ok(Self::InsufficientFunds),
+            Self::Error::IncorrectProgramId => Ok(Self::IncorrectProgramId),
+            Self::Error::MissingRequiredSignature => Ok(Self::MissingRequiredSignature),
+            Self::Error::AccountAlreadyInitialized => Ok(Self::AccountAlreadyInitialized),
+            Self::Error::UninitializedAccount => Ok(Self::UninitializedAccount),
+            Self::Error::NotEnoughAccountKeys => Ok(Self::NotEnoughAccountKeys),
+            Self::Error::AccountBorrowFailed => Ok(Self::AccountBorrowFailed),
+            Self::Error::MaxSeedLengthExceeded => Ok(Self::MaxSeedLengthExceeded),
+            Self::Error::InvalidSeeds => Ok(Self::InvalidSeeds),
+            Self::Error::BorshIoError(err) => Ok(Self::BorshIoError(err)),
+            Self::Error::AccountNotRentExempt => Ok(Self::AccountNotRentExempt),
+            Self::Error::UnsupportedSysvar => Ok(Self::UnsupportedSysvar),
+            Self::Error::IllegalOwner => Ok(Self::IllegalOwner),
+            Self::Error::MaxAccountsDataAllocationsExceeded => {
+                Ok(Self::MaxAccountsDataAllocationsExceeded)
+            }
+            Self::Error::InvalidRealloc => Ok(Self::InvalidRealloc),
+            Self::Error::MaxInstructionTraceLengthExceeded => {
+                Ok(Self::MaxInstructionTraceLengthExceeded)
+            }
+            Self::Error::BuiltinProgramsMustConsumeComputeUnits => {
+                Ok(Self::BuiltinProgramsMustConsumeComputeUnits)
+            }
+            Self::Error::InvalidAccountOwner => Ok(Self::InvalidAccountOwner),
+            Self::Error::ArithmeticOverflow => Ok(Self::ArithmeticOverflow),
+            Self::Error::Immutable => Ok(Self::Immutable),
+            Self::Error::IncorrectAuthority => Ok(Self::IncorrectAuthority),
+            _ => Err(error),
+        }
+    }
+}
+
+impl From<PubkeyError> for ProgramError {
+    fn from(error: PubkeyError) -> Self {
+        match error {
+            PubkeyError::MaxSeedLengthExceeded => Self::MaxSeedLengthExceeded,
+            PubkeyError::InvalidSeeds => Self::InvalidSeeds,
+            PubkeyError::IllegalOwner => Self::IllegalOwner,
         }
     }
 }
@@ -613,25 +809,25 @@ impl SysvarCache {
                 self.stake_history = Some(data);
                 self.stake_history_obj = Some(Arc::new(stake_history));
             }
-            _ => panic!("Unrecognized Sysvar ID: {sysvar_id:?}"),
+            _ => panic!("Unrecognized Sysvar ID: {sysvar_id}"),
         }
     }
 
     // this is exposed for SyscallGetSysvar and should not otherwise be used
     pub fn sysvar_id_to_buffer(&self, sysvar_id: &Pubkey) -> &Option<Vec<u8>> {
-        if sysvar::clock::ID == *sysvar_id {
+        if clock::check_id(sysvar_id) {
             &self.clock
-        } else if sysvar::epoch_schedule::ID == *sysvar_id {
+        } else if epoch_schedule::check_id(sysvar_id) {
             &self.epoch_schedule
-        } else if sysvar::epoch_rewards::ID == *sysvar_id {
+        } else if epoch_rewards::check_id(sysvar_id) {
             &self.epoch_rewards
-        } else if sysvar::rent::ID == *sysvar_id {
+        } else if rent::check_id(sysvar_id) {
             &self.rent
-        } else if sysvar::slot_hashes::ID == *sysvar_id {
+        } else if slot_hashes::check_id(sysvar_id) {
             &self.slot_hashes
-        } else if sysvar::stake_history::ID == *sysvar_id {
+        } else if stake_history::check_id(sysvar_id) {
             &self.stake_history
-        } else if sysvar::last_restart_slot::ID == *sysvar_id {
+        } else if last_restart_slot::check_id(sysvar_id) {
             &self.last_restart_slot
         } else {
             &None
@@ -654,23 +850,23 @@ impl SysvarCache {
     }
 
     pub fn get_clock(&self) -> Result<Arc<Clock>, InstructionError> {
-        self.get_sysvar_obj(&sysvar::clock::ID)
+        self.get_sysvar_obj(&clock::id())
     }
 
     pub fn get_epoch_schedule(&self) -> Result<Arc<EpochSchedule>, InstructionError> {
-        self.get_sysvar_obj(&sysvar::epoch_schedule::ID)
+        self.get_sysvar_obj(&epoch_schedule::id())
     }
 
     pub fn get_epoch_rewards(&self) -> Result<Arc<EpochRewards>, InstructionError> {
-        self.get_sysvar_obj(&sysvar::epoch_rewards::ID)
+        self.get_sysvar_obj(&epoch_rewards::id())
     }
 
     pub fn get_rent(&self) -> Result<Arc<Rent>, InstructionError> {
-        self.get_sysvar_obj(&sysvar::rent::ID)
+        self.get_sysvar_obj(&rent::id())
     }
 
     pub fn get_last_restart_slot(&self) -> Result<Arc<LastRestartSlot>, InstructionError> {
-        self.get_sysvar_obj(&sysvar::last_restart_slot::ID)
+        self.get_sysvar_obj(&last_restart_slot::id())
     }
 
     pub fn get_stake_history(&self) -> Result<Arc<StakeHistory>, InstructionError> {
@@ -708,7 +904,7 @@ impl SysvarCache {
         mut get_account_data: F,
     ) {
         if self.clock.is_none() {
-            get_account_data(&sysvar::clock::ID, &mut |data: &[u8]| {
+            get_account_data(&clock::id(), &mut |data: &[u8]| {
                 if bincode::deserialize::<Clock>(data).is_ok() {
                     self.clock = Some(data.to_vec());
                 }
@@ -716,7 +912,7 @@ impl SysvarCache {
         }
 
         if self.epoch_schedule.is_none() {
-            get_account_data(&sysvar::epoch_schedule::ID, &mut |data: &[u8]| {
+            get_account_data(&epoch_schedule::id(), &mut |data: &[u8]| {
                 if bincode::deserialize::<EpochSchedule>(data).is_ok() {
                     self.epoch_schedule = Some(data.to_vec());
                 }
@@ -724,7 +920,7 @@ impl SysvarCache {
         }
 
         if self.epoch_rewards.is_none() {
-            get_account_data(&sysvar::epoch_rewards::ID, &mut |data: &[u8]| {
+            get_account_data(&epoch_rewards::id(), &mut |data: &[u8]| {
                 if bincode::deserialize::<EpochRewards>(data).is_ok() {
                     self.epoch_rewards = Some(data.to_vec());
                 }
@@ -732,7 +928,7 @@ impl SysvarCache {
         }
 
         if self.rent.is_none() {
-            get_account_data(&sysvar::rent::ID, &mut |data: &[u8]| {
+            get_account_data(&rent::id(), &mut |data: &[u8]| {
                 if bincode::deserialize::<Rent>(data).is_ok() {
                     self.rent = Some(data.to_vec());
                 }
@@ -740,7 +936,7 @@ impl SysvarCache {
         }
 
         if self.slot_hashes.is_none() {
-            get_account_data(&sysvar::slot_hashes::ID, &mut |data: &[u8]| {
+            get_account_data(&slot_hashes::id(), &mut |data: &[u8]| {
                 if let Ok(obj) = bincode::deserialize::<SlotHashes>(data) {
                     self.slot_hashes = Some(data.to_vec());
                     self.slot_hashes_obj = Some(Arc::new(obj));
@@ -749,7 +945,7 @@ impl SysvarCache {
         }
 
         if self.stake_history.is_none() {
-            get_account_data(&sysvar::stake_history::ID, &mut |data: &[u8]| {
+            get_account_data(&stake_history::id(), &mut |data: &[u8]| {
                 if let Ok(obj) = bincode::deserialize::<StakeHistory>(data) {
                     self.stake_history = Some(data.to_vec());
                     self.stake_history_obj = Some(Arc::new(obj));
@@ -758,7 +954,7 @@ impl SysvarCache {
         }
 
         if self.last_restart_slot.is_none() {
-            get_account_data(&sysvar::last_restart_slot::ID, &mut |data: &[u8]| {
+            get_account_data(&last_restart_slot::id(), &mut |data: &[u8]| {
                 if bincode::deserialize::<LastRestartSlot>(data).is_ok() {
                     self.last_restart_slot = Some(data.to_vec());
                 }
@@ -1006,4 +1202,90 @@ impl EpochRewards {
         assert!(new_distributed_rewards <= self.total_rewards);
         self.distributed_rewards = new_distributed_rewards;
     }
+}
+
+use crate::impl_sysvar_get;
+
+impl SysvarId for LastRestartSlot {
+    fn id() -> Pubkey {
+        last_restart_slot::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        last_restart_slot::check_id(pubkey)
+    }
+}
+
+impl Sysvar for LastRestartSlot {
+    impl_sysvar_get!(sol_get_last_restart_slot);
+}
+
+impl SysvarId for Clock {
+    fn id() -> Pubkey {
+        clock::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        clock::check_id(pubkey)
+    }
+}
+
+impl Sysvar for Clock {
+    impl_sysvar_get!(sol_get_clock_sysvar);
+}
+
+impl SysvarId for EpochRewards {
+    fn id() -> Pubkey {
+        epoch_rewards::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        epoch_rewards::check_id(pubkey)
+    }
+}
+
+impl Sysvar for EpochRewards {
+    impl_sysvar_get!(sol_get_epoch_rewards_sysvar);
+}
+
+impl SysvarId for Fees {
+    fn id() -> Pubkey {
+        clock::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        clock::check_id(pubkey)
+    }
+}
+
+impl Sysvar for Fees {
+    impl_sysvar_get!(sol_get_fees_sysvar);
+}
+
+impl SysvarId for Rent {
+    fn id() -> Pubkey {
+        fees::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        fees::check_id(pubkey)
+    }
+}
+
+impl Sysvar for Rent {
+    impl_sysvar_get!(sol_get_rent_sysvar);
+}
+
+impl SysvarId for EpochSchedule {
+    fn id() -> Pubkey {
+        epoch_schedule::id()
+    }
+
+    fn check_id(pubkey: &Pubkey) -> bool {
+        epoch_schedule::check_id(pubkey)
+    }
+}
+
+impl Sysvar for EpochSchedule {
+    impl_sysvar_get!(sol_get_epoch_schedule_sysvar);
 }

@@ -1,19 +1,24 @@
 pub mod account;
 pub mod blake3;
 pub mod compute_budget;
+pub mod cpi_common;
 pub mod environment_config;
 pub mod feature_set;
 pub mod instruction;
 pub mod keccak;
 pub mod log_collector;
 pub mod measure;
+pub mod poseidon;
 pub mod program_cache;
 pub mod program_ids;
+pub mod program_stubs;
 pub mod pubkey;
 pub mod runtime;
+pub mod solana_bn254;
 pub mod solana_ed25519_program;
 pub mod solana_secp256k1_program;
 pub mod solana_secp256r1_program;
+pub mod solana_sha256_hasher;
 pub mod stable_log;
 pub mod syscall;
 pub mod timings;
@@ -33,6 +38,7 @@ use std::{
 
 pub use account::*;
 pub use compute_budget::*;
+pub use cpi_common::*;
 use enum_iterator::Sequence;
 pub use environment_config::*;
 use feature_set::features::{
@@ -60,6 +66,11 @@ pub use timings::*;
 pub use transaction_context::*;
 
 use crate::features::enable_secp256r1_precompile;
+
+pub const MAX_RETURN_DATA: usize = 1024;
+pub const MAX_CPI_INSTRUCTION_DATA_LEN: u64 = 10 * 1024;
+pub const MAX_CPI_INSTRUCTION_ACCOUNTS: u8 = u8::MAX;
+pub const MAX_CPI_ACCOUNT_INFOS: usize = 128;
 
 #[repr(C)]
 pub struct StableVec<T> {

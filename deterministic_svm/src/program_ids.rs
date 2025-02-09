@@ -12,6 +12,22 @@ pub mod bpf_loader_deprecated {
 
 pub mod bpf_loader_upgradeable {
     crate::declare_id!("BPFLoaderUpgradeab1e11111111111111111111111");
+
+    pub fn is_upgrade_instruction(instruction_data: &[u8]) -> bool {
+        !instruction_data.is_empty() && 3 == instruction_data[0]
+    }
+
+    pub fn is_set_authority_instruction(instruction_data: &[u8]) -> bool {
+        !instruction_data.is_empty() && 4 == instruction_data[0]
+    }
+
+    pub fn is_close_instruction(instruction_data: &[u8]) -> bool {
+        !instruction_data.is_empty() && 5 == instruction_data[0]
+    }
+
+    pub fn is_set_authority_checked_instruction(instruction_data: &[u8]) -> bool {
+        !instruction_data.is_empty() && 7 == instruction_data[0]
+    }
 }
 
 pub mod compute_budget {

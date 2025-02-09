@@ -4,6 +4,7 @@
 
 use bytemuck::{bytes_of, Pod, Zeroable};
 use ed25519_dalek::{Signature, Signer, Verifier};
+use thiserror::Error;
 
 use crate::{features::ed25519_precompile_verify_strict, FeatureSet, Instruction, PrecompileError};
 
@@ -179,3 +180,357 @@ fn get_data_slice<'a>(
 
     Ok(&instruction[start..end])
 }
+
+pub trait PointValidation {
+    type Point;
+
+    /// Verifies if a byte representation of a curve point lies in the curve.
+    fn validate_point(&self) -> bool;
+}
+
+pub trait GroupOperations {
+    type Point;
+    type Scalar;
+
+    /// Adds two curve points: P_0 + P_1.
+    fn add(left_point: &Self::Point, right_point: &Self::Point) -> Option<Self::Point>;
+
+    /// Subtracts two curve points: P_0 - P_1.
+    ///
+    /// NOTE: Altneratively, one can consider replacing this with a `negate` function that maps a
+    /// curve point P -> -P. Then subtraction can be computed by combining `negate` and `add`
+    /// syscalls. However, `subtract` is a much more widely used function than `negate`.
+    fn subtract(left_point: &Self::Point, right_point: &Self::Point) -> Option<Self::Point>;
+
+    /// Multiplies a scalar S with a curve point P: S*P
+    fn multiply(scalar: &Self::Scalar, point: &Self::Point) -> Option<Self::Point>;
+}
+
+pub trait MultiScalarMultiplication {
+    type Scalar;
+    type Point;
+
+    /// Given a vector of scalsrs S_1, ..., S_N, and curve points P_1, ..., P_N, computes the
+    /// "inner product": S_1*P_1 + ... + S_N*P_N.
+    ///
+    /// NOTE: This operation can be represented by combining `add` and `multiply` functions in
+    /// `GroupOperations`, but computing it in a single batch is significantly cheaper. Given how
+    /// commonly used the multiscalar multiplication (MSM) is, it seems to make sense to have a
+    /// designated trait for MSM support.
+    ///
+    /// NOTE: The inputs to the function is a non-fixed size vector and hence, there are some
+    /// complications in computing the cost for the syscall. The computational costs should only
+    /// depend on the length of the vectors (and the curve), so it would be ideal to support
+    /// variable length inputs and compute the syscall cost as is done in eip-197:
+    /// <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-197.md#gas-costs>. If not, then we can
+    /// consider bounding the length of the input and assigning worst-case cost.
+    fn multiscalar_multiply(
+        scalars: &[Self::Scalar],
+        points: &[Self::Point],
+    ) -> Option<Self::Point>;
+}
+
+pub trait Pairing {
+    type G1Point;
+    type G2Point;
+    type GTPoint;
+
+    /// Applies the bilinear pairing operation to two curve points P1, P2 -> e(P1, P2). This trait
+    /// is only relevant for "pairing-friendly" curves such as BN254 and BLS12-381.
+    fn pairing_map(
+        left_point: &Self::G1Point,
+        right_point: &Self::G2Point,
+    ) -> Option<Self::GTPoint>;
+}
+
+pub const CURVE25519_EDWARDS: u64 = 0;
+pub const CURVE25519_RISTRETTO: u64 = 1;
+
+pub const ADD: u64 = 0;
+pub const SUB: u64 = 1;
+pub const MUL: u64 = 2;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(transparent)]
+pub struct PodEdwardsPoint(pub [u8; 32]);
+
+pub mod target_arch {
+    use {
+        super::*,
+        curve25519_dalek::{
+            edwards::{CompressedEdwardsY, EdwardsPoint},
+            ristretto::CompressedRistretto,
+            scalar::Scalar,
+            traits::VartimeMultiscalarMul,
+            RistrettoPoint,
+        },
+    };
+
+    pub fn validate_edwards(point: &PodEdwardsPoint) -> bool {
+        point.validate_point()
+    }
+
+    pub fn add_edwards(
+        left_point: &PodEdwardsPoint,
+        right_point: &PodEdwardsPoint,
+    ) -> Option<PodEdwardsPoint> {
+        PodEdwardsPoint::add(left_point, right_point)
+    }
+
+    pub fn subtract_edwards(
+        left_point: &PodEdwardsPoint,
+        right_point: &PodEdwardsPoint,
+    ) -> Option<PodEdwardsPoint> {
+        PodEdwardsPoint::subtract(left_point, right_point)
+    }
+
+    pub fn multiply_edwards(
+        scalar: &PodScalar,
+        point: &PodEdwardsPoint,
+    ) -> Option<PodEdwardsPoint> {
+        PodEdwardsPoint::multiply(scalar, point)
+    }
+
+    pub fn multiscalar_multiply_edwards(
+        scalars: &[PodScalar],
+        points: &[PodEdwardsPoint],
+    ) -> Option<PodEdwardsPoint> {
+        PodEdwardsPoint::multiscalar_multiply(scalars, points)
+    }
+
+    impl From<&EdwardsPoint> for PodEdwardsPoint {
+        fn from(point: &EdwardsPoint) -> Self {
+            Self(point.compress().to_bytes())
+        }
+    }
+
+    impl TryFrom<&PodEdwardsPoint> for EdwardsPoint {
+        type Error = Curve25519Error;
+
+        fn try_from(pod: &PodEdwardsPoint) -> Result<Self, Self::Error> {
+            let Ok(compressed_edwards_y) = CompressedEdwardsY::from_slice(&pod.0) else {
+                return Err(Curve25519Error::PodConversion);
+            };
+            compressed_edwards_y
+                .decompress()
+                .ok_or(Curve25519Error::PodConversion)
+        }
+    }
+
+    impl PointValidation for PodEdwardsPoint {
+        type Point = Self;
+
+        fn validate_point(&self) -> bool {
+            let Ok(compressed_edwards_y) = CompressedEdwardsY::from_slice(&self.0) else {
+                return false;
+            };
+            compressed_edwards_y.decompress().is_some()
+        }
+    }
+
+    impl GroupOperations for PodEdwardsPoint {
+        type Scalar = PodScalar;
+        type Point = Self;
+
+        fn add(left_point: &Self, right_point: &Self) -> Option<Self> {
+            let left_point: EdwardsPoint = left_point.try_into().ok()?;
+            let right_point: EdwardsPoint = right_point.try_into().ok()?;
+
+            let result = &left_point + &right_point;
+            Some((&result).into())
+        }
+
+        fn subtract(left_point: &Self, right_point: &Self) -> Option<Self> {
+            let left_point: EdwardsPoint = left_point.try_into().ok()?;
+            let right_point: EdwardsPoint = right_point.try_into().ok()?;
+
+            let result = &left_point - &right_point;
+            Some((&result).into())
+        }
+
+        fn multiply(scalar: &PodScalar, point: &Self) -> Option<Self> {
+            let scalar: Scalar = scalar.try_into().ok()?;
+            let point: EdwardsPoint = point.try_into().ok()?;
+
+            let result = &scalar * &point;
+            Some((&result).into())
+        }
+    }
+
+    impl MultiScalarMultiplication for PodEdwardsPoint {
+        type Scalar = PodScalar;
+        type Point = Self;
+
+        fn multiscalar_multiply(scalars: &[PodScalar], points: &[Self]) -> Option<Self> {
+            let scalars = scalars
+                .iter()
+                .map(|scalar| Scalar::try_from(scalar).ok())
+                .collect::<Option<Vec<_>>>()?;
+
+            EdwardsPoint::optional_multiscalar_mul(
+                scalars,
+                points
+                    .iter()
+                    .map(|point| EdwardsPoint::try_from(point).ok()),
+            )
+            .map(|result| PodEdwardsPoint::from(&result))
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+    #[repr(transparent)]
+    pub struct PodRistrettoPoint(pub [u8; 32]);
+
+    pub fn validate_ristretto(point: &PodRistrettoPoint) -> bool {
+        point.validate_point()
+    }
+
+    pub fn add_ristretto(
+        left_point: &PodRistrettoPoint,
+        right_point: &PodRistrettoPoint,
+    ) -> Option<PodRistrettoPoint> {
+        PodRistrettoPoint::add(left_point, right_point)
+    }
+
+    pub fn subtract_ristretto(
+        left_point: &PodRistrettoPoint,
+        right_point: &PodRistrettoPoint,
+    ) -> Option<PodRistrettoPoint> {
+        PodRistrettoPoint::subtract(left_point, right_point)
+    }
+
+    pub fn multiply_ristretto(
+        scalar: &PodScalar,
+        point: &PodRistrettoPoint,
+    ) -> Option<PodRistrettoPoint> {
+        PodRistrettoPoint::multiply(scalar, point)
+    }
+
+    pub fn multiscalar_multiply_ristretto(
+        scalars: &[PodScalar],
+        points: &[PodRistrettoPoint],
+    ) -> Option<PodRistrettoPoint> {
+        PodRistrettoPoint::multiscalar_multiply(scalars, points)
+    }
+
+    impl From<&RistrettoPoint> for PodRistrettoPoint {
+        fn from(point: &RistrettoPoint) -> Self {
+            PodRistrettoPoint(point.compress().to_bytes())
+        }
+    }
+
+    impl TryFrom<&PodRistrettoPoint> for RistrettoPoint {
+        type Error = Curve25519Error;
+
+        fn try_from(pod: &PodRistrettoPoint) -> Result<Self, Self::Error> {
+            let Ok(compressed_ristretto) = CompressedRistretto::from_slice(&pod.0) else {
+                return Err(Curve25519Error::PodConversion);
+            };
+            compressed_ristretto
+                .decompress()
+                .ok_or(Curve25519Error::PodConversion)
+        }
+    }
+
+    impl PointValidation for PodRistrettoPoint {
+        type Point = Self;
+
+        fn validate_point(&self) -> bool {
+            let Ok(compressed_ristretto) = CompressedRistretto::from_slice(&self.0) else {
+                return false;
+            };
+            compressed_ristretto.decompress().is_some()
+        }
+    }
+
+    impl GroupOperations for PodRistrettoPoint {
+        type Scalar = PodScalar;
+        type Point = Self;
+
+        fn add(left_point: &Self, right_point: &Self) -> Option<Self> {
+            let left_point: RistrettoPoint = left_point.try_into().ok()?;
+            let right_point: RistrettoPoint = right_point.try_into().ok()?;
+
+            let result = &left_point + &right_point;
+            Some((&result).into())
+        }
+
+        fn subtract(left_point: &Self, right_point: &Self) -> Option<Self> {
+            let left_point: RistrettoPoint = left_point.try_into().ok()?;
+            let right_point: RistrettoPoint = right_point.try_into().ok()?;
+
+            let result = &left_point - &right_point;
+            Some((&result).into())
+        }
+
+        fn multiply(scalar: &PodScalar, point: &Self) -> Option<Self> {
+            let scalar: Scalar = scalar.try_into().ok()?;
+            let point: RistrettoPoint = point.try_into().ok()?;
+
+            let result = &scalar * &point;
+            Some((&result).into())
+        }
+    }
+
+    impl MultiScalarMultiplication for PodRistrettoPoint {
+        type Scalar = PodScalar;
+        type Point = Self;
+
+        fn multiscalar_multiply(scalars: &[PodScalar], points: &[Self]) -> Option<Self> {
+            let scalars = scalars
+                .iter()
+                .map(|scalar| Scalar::try_from(scalar).ok())
+                .collect::<Option<Vec<_>>>()?;
+
+            RistrettoPoint::optional_multiscalar_mul(
+                scalars,
+                points
+                    .iter()
+                    .map(|point| RistrettoPoint::try_from(point).ok()),
+            )
+            .map(|result| PodRistrettoPoint::from(&result))
+        }
+    }
+
+    impl From<&Scalar> for PodScalar {
+        fn from(scalar: &Scalar) -> Self {
+            Self(scalar.to_bytes())
+        }
+    }
+
+    impl TryFrom<&PodScalar> for Scalar {
+        type Error = Curve25519Error;
+
+        fn try_from(pod: &PodScalar) -> Result<Self, Self::Error> {
+            Scalar::from_canonical_bytes(pod.0)
+                .into_option()
+                .ok_or(Curve25519Error::PodConversion)
+        }
+    }
+
+    impl From<Scalar> for PodScalar {
+        fn from(scalar: Scalar) -> Self {
+            Self(scalar.to_bytes())
+        }
+    }
+
+    impl TryFrom<PodScalar> for Scalar {
+        type Error = Curve25519Error;
+
+        fn try_from(pod: PodScalar) -> Result<Self, Self::Error> {
+            Scalar::from_canonical_bytes(pod.0)
+                .into_option()
+                .ok_or(Curve25519Error::PodConversion)
+        }
+    }
+}
+
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
+pub enum Curve25519Error {
+    #[error("pod conversion failed")]
+    PodConversion,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(transparent)]
+pub struct PodScalar(pub [u8; 32]);

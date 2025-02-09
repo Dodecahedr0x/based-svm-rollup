@@ -558,6 +558,10 @@ dependencies = [
 name = "deterministic_svm"
 version = "0.1.0"
 dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
  "base64 0.22.1",
  "bincode",
  "blake3",
@@ -571,10 +575,13 @@ dependencies = [
  "itertools 0.12.1",
  "lazy_static",
  "libsecp256k1",
+ "light-poseidon",
  "log",
+ "num-bigint 0.4.6",
  "num-traits",
  "openssl",
  "percentage",
+ "scopeguard",
  "serde",
  "sha2 0.10.8",
  "sha3",
@@ -943,6 +950,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67abfe149395e3aa1c48a2beb32b068e2334402df8181f818d3aee2b304c4f5d"
 dependencies = [
  "libsecp256k1-core",
+]
+
+[[package]]
+name = "light-poseidon"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c9a85a9752c549ceb7578064b4ed891179d20acd85f27318573b64d2d7ee7ee"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "num-bigint 0.4.6",
+ "thiserror",
 ]
 
 [[package]]

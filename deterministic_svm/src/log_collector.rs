@@ -98,3 +98,16 @@ macro_rules! ic_msg {
         $crate::ic_logger_msg!($invoke_context.get_log_collector(), $fmt, $($arg)*)
     };
 }
+
+#[macro_export]
+macro_rules! msg {
+    ($msg:expr) => {
+        $crate::sol_log($msg)
+    };
+    ($($arg:tt)*) => ($crate::sol_log(&format!($($arg)*)));
+}
+
+#[inline]
+pub fn sol_log(message: &str) {
+    println!("{message}");
+}
