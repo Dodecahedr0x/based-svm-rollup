@@ -20,6 +20,7 @@ pub const MAX_SEED_LEN: usize = 32;
 pub const MAX_SEEDS: usize = 16;
 /// Maximum string length of a base58 encoded pubkey
 const MAX_BASE58_LEN: usize = 44;
+const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PubkeyError {
@@ -249,6 +250,35 @@ impl Pubkey {
 
         #[cfg(all(not(target_os = "solana"), feature = "std"))]
         std::println!("{}", std::string::ToString::to_string(&self));
+    }
+
+    pub fn create_program_address(
+        seeds: &[&[u8]],
+        program_id: &Pubkey,
+    ) -> Result<Pubkey, PubkeyError> {
+        if seeds.len() > MAX_SEEDS {
+            return Err(PubkeyError::MaxSeedLengthExceeded);
+        }
+        for seed in seeds.iter() {
+            if seed.len() > MAX_SEED_LEN {
+                return Err(PubkeyError::MaxSeedLengthExceeded);
+            }
+        }
+
+        // Perform the calculation inline, calling this from within a program is
+        // not supported
+        let mut hasher = solana_sha256_hasher::Hasher::default();
+        for seed in seeds.iter() {
+            hasher.hash(seed);
+        }
+        hasher.hashv(&[program_id.as_ref(), PDA_MARKER]);
+        let hash = hasher.result();
+
+        if bytes_are_curve_point(hash) {
+            return Err(PubkeyError::InvalidSeeds);
+        }
+
+        Ok(Pubkey::from(hash.to_bytes()))
     }
 }
 

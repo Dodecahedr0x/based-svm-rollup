@@ -1,20 +1,23 @@
-mod account;
-mod compute_budget;
-mod environment_config;
-mod feature_set;
-mod instruction;
-mod log_collector;
-mod measure;
-mod program_cache;
-mod program_ids;
-mod pubkey;
-mod solana_ed25519_program;
-mod solana_secp256k1_program;
-mod solana_secp256r1_program;
-mod stable_log;
-mod syscall;
-mod timings;
-mod transaction_context;
+pub mod account;
+pub mod blake3;
+pub mod compute_budget;
+pub mod environment_config;
+pub mod feature_set;
+pub mod instruction;
+pub mod keccak;
+pub mod log_collector;
+pub mod measure;
+pub mod program_cache;
+pub mod program_ids;
+pub mod pubkey;
+pub mod runtime;
+pub mod solana_ed25519_program;
+pub mod solana_secp256k1_program;
+pub mod solana_secp256r1_program;
+pub mod stable_log;
+pub mod syscall;
+pub mod timings;
+pub mod transaction_context;
 
 use core::fmt;
 use std::{
@@ -32,6 +35,10 @@ pub use account::*;
 pub use compute_budget::*;
 use enum_iterator::Sequence;
 pub use environment_config::*;
+use feature_set::features::{
+    lift_cpi_caller_restriction, move_precompile_verification_to_svm,
+    remove_accounts_executable_flag_checks,
+};
 pub use feature_set::*;
 pub use instruction::*;
 use lazy_static::lazy_static;
@@ -41,6 +48,7 @@ use num_traits::FromPrimitive;
 pub use program_cache::*;
 pub use program_ids::*;
 pub use pubkey::*;
+pub use runtime::*;
 use solana_sbpf::{
     error::{EbpfError, ProgramResult},
     memory_region::MemoryMapping,
@@ -50,6 +58,8 @@ use solana_sbpf::{
 pub use syscall::*;
 pub use timings::*;
 pub use transaction_context::*;
+
+use crate::features::enable_secp256r1_precompile;
 
 #[repr(C)]
 pub struct StableVec<T> {

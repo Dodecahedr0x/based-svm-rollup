@@ -5,7 +5,7 @@
 use bytemuck::{bytes_of, Pod, Zeroable};
 use ed25519_dalek::{Signature, Signer, Verifier};
 
-use crate::{ed25519_precompile_verify_strict, FeatureSet, Instruction, PrecompileError};
+use crate::{features::ed25519_precompile_verify_strict, FeatureSet, Instruction, PrecompileError};
 
 pub const PUBKEY_SERIALIZED_SIZE: usize = 32;
 pub const SIGNATURE_SERIALIZED_SIZE: usize = 64;

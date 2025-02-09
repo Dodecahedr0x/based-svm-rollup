@@ -9,7 +9,10 @@
 
 use std::sync::Arc;
 
-use deterministic_svm::InvokeContext;
+use deterministic_svm::{
+    AccountSharedData, ComputeBudget, FeatureSet, FeeStructure, InvokeContext, Pubkey, Rent,
+    TransactionContext,
+};
 use solana_sbpf::{
     memory_region::MemoryMapping,
     program::{BuiltinProgram, SBPFVersion},
@@ -58,9 +61,99 @@ pub fn main() {
     // let mut svm = LiteSVM::new();
 
     // Process transactions
-    // for tx in txs {
-    //     svm.send_transaction(tx).unwrap();
-    // }
+    let compute_budget = ComputeBudget::default();
+    let feature_set = FeatureSet::all_enabled();
+    let fee_structure = FeeStructure::default();
+    let lamports_per_signature = fee_structure.lamports_per_signature;
+    // let rent_collector = RentCollector::default();
+
+    // Solana runtime.
+    // let fork_graph = Arc::new(RwLock::new(SequencerForkGraph {}));
+
+    // // create transaction processor, add accounts and programs, builtins,
+    // let processor = TransactionBatchProcessor::<SequencerForkGraph>::default();
+
+    // let mut cache = processor.program_cache.write().unwrap();
+
+    // // Initialize the mocked fork graph.
+    // // let fork_graph = Arc::new(RwLock::new(PayTubeForkGraph {}));
+    // cache.fork_graph = Some(Arc::downgrade(&fork_graph));
+
+    // let rent = Rent::default();
+
+    let accounts_data = transaction
+        .message
+        .account_keys
+        .iter()
+        .map(|pubkey| {
+            (
+                pubkey.clone(),
+                rpc_client_temp.get_account(pubkey).unwrap().into(),
+            )
+        })
+        .collect::<Vec<(Pubkey, AccountSharedData)>>();
+
+    let mut transaction_context = TransactionContext::new(accounts_data, Rent::default(), 0, 0);
+
+    let runtime_env = Arc::new(
+        create_program_runtime_environment_v1(&feature_set, &compute_budget, false, false).unwrap(),
+    );
+
+    let mut prog_cache = ProgramCacheForTxBatch::new(
+        Slot::default(),
+        ProgramRuntimeEnvironments {
+            program_runtime_v1: runtime_env.clone(),
+            program_runtime_v2: runtime_env,
+        },
+        None,
+        Epoch::default(),
+    );
+
+    let sysvar_c = sysvar_cache::SysvarCache::default();
+    let env = EnvironmentConfig::new(
+        Hash::default(),
+        None,
+        None,
+        Arc::new(feature_set),
+        lamports_per_signature,
+        &sysvar_c,
+    );
+    // let default_env = EnvironmentConfig::new(blockhash, epoch_total_stake, epoch_vote_accounts, feature_set, lamports_per_signature, sysvar_cache)
+
+    // let processing_environment = TransactionProcessingEnvironment {
+    //     blockhash: Hash::default(),
+    //     epoch_total_stake: None,
+    //     epoch_vote_accounts: None,
+    //     feature_set: Arc::new(feature_set),
+    //     fee_structure: Some(&fee_structure),
+    //     lamports_per_signature,
+    //     rent_collector: Some(&rent_collector),
+    // };
+
+    let mut invoke_context = InvokeContext::new(
+        &mut transaction_context,
+        &mut prog_cache,
+        env,
+        None,
+        compute_budget.to_owned(),
+    );
+
+    let mut used_cu = 0u64;
+    let sanitized = SanitizedTransaction::try_from_legacy_transaction(
+        Transaction::from(transaction.clone()),
+        &HashSet::new(),
+    );
+    log::info!("{:?}", sanitized.clone());
+
+    let mut timings = ExecuteTimings::default();
+
+    let _result_msg = MessageProcessor::process_message(
+        sanitized.unwrap().message(),
+        &vec![],
+        &mut invoke_context,
+        &mut timings,
+        &mut used_cu,
+    );
 
     // Update accounts
     // for pk in input.state.accounts.clone().keys() {

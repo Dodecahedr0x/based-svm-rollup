@@ -266,3 +266,30 @@ impl Default for ComputeBudgetLimits {
         }
     }
 }
+
+/// A fee and its associated compute unit limit
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub struct FeeBin {
+    /// maximum compute units for which this fee will be charged
+    pub limit: u64,
+    /// fee in lamports
+    pub fee: u64,
+}
+
+pub struct FeeBudgetLimits {
+    pub loaded_accounts_data_size_limit: NonZeroU32,
+    pub heap_cost: u64,
+    pub compute_unit_limit: u64,
+    pub prioritization_fee: u64,
+}
+
+/// Information used to calculate fees
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FeeStructure {
+    /// lamports per signature
+    pub lamports_per_signature: u64,
+    /// lamports_per_write_lock
+    pub lamports_per_write_lock: u64,
+    /// Compute unit fee bins
+    pub compute_fee_bins: Vec<FeeBin>,
+}
