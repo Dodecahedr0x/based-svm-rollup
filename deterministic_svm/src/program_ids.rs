@@ -101,7 +101,47 @@ pub mod sysvar {
         crate::declare_id!("SysvarFees111111111111111111111111111111111");
     }
     pub mod instructions {
+        use crate::{AccountInfo, ProgramError};
+
         crate::declare_id!("Sysvar1nstructions1111111111111111111111111");
+
+        /// Load the current `Instruction`'s index in the currently executing
+        /// `Transaction`.
+        ///
+        /// `data` is the instructions sysvar account data.
+        ///
+        /// Unsafe because the sysvar accounts address is not checked; only used
+        /// internally after such a check.
+        fn load_current_index(data: &[u8]) -> u16 {
+            let mut instr_fixed_data = [0u8; 2];
+            let len = data.len();
+            instr_fixed_data.copy_from_slice(&data[len - 2..len]);
+            u16::from_le_bytes(instr_fixed_data)
+        }
+
+        /// Load the current `Instruction`'s index in the currently executing
+        /// `Transaction`.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ProgramError::UnsupportedSysvar`] if the given account's ID is not equal to [`ID`].
+        pub fn load_current_index_checked(
+            instruction_sysvar_account_info: &AccountInfo,
+        ) -> Result<u16, ProgramError> {
+            if !check_id(instruction_sysvar_account_info.key) {
+                return Err(ProgramError::UnsupportedSysvar);
+            }
+
+            let instruction_sysvar = instruction_sysvar_account_info.try_borrow_data()?;
+            let index = load_current_index(&instruction_sysvar);
+            Ok(index)
+        }
+
+        /// Store the current `Instruction`'s index in the instructions sysvar data.
+        pub fn store_current_index(data: &mut [u8], instruction_index: u16) {
+            let last_index = data.len() - 2;
+            data[last_index..last_index + 2].copy_from_slice(&instruction_index.to_le_bytes());
+        }
     }
     pub mod last_restart_slot {
         crate::declare_id!("SysvarLastRestartS1ot1111111111111111111111");

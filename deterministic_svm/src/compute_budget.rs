@@ -284,7 +284,7 @@ pub struct FeeBudgetLimits {
 }
 
 /// Information used to calculate fees
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct FeeStructure {
     /// lamports per signature
     pub lamports_per_signature: u64,

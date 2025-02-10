@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha3::digest::Digest;
 use thiserror::Error;
 
-use crate::{FeatureSet, PrecompileError};
+use crate::{secp256k1_program, FeatureSet, Instruction, PrecompileError};
 
 pub const HASHED_PUBKEY_SERIALIZED_SIZE: usize = 20;
 pub const SIGNATURE_SERIALIZED_SIZE: usize = 64;
@@ -79,7 +79,6 @@ pub struct SecpSignatureOffsets {
 /// `message_arr` is hashed with the [`keccak`] hash function prior to signing.
 ///
 /// [`keccak`]: https://docs.rs/solana-sdk/latest/solana_sdk/keccak/index.html
-#[cfg(feature = "bincode")]
 pub fn new_secp256k1_instruction(
     priv_key: &libsecp256k1::SecretKey,
     message_arr: &[u8],
@@ -134,7 +133,7 @@ pub fn new_secp256k1_instruction(
     bincode::serialize_into(writer, &offsets).unwrap();
 
     Instruction {
-        program_id: solana_sdk_ids::secp256k1_program::id(),
+        program_id: secp256k1_program::id(),
         accounts: vec![],
         data: instruction_data,
     }

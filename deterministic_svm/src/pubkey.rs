@@ -1,5 +1,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 
+use serde::{Deserialize, Serialize};
+
 use crate::{solana_sha256_hasher, DecodeError, Sanitize};
 use std::sync::atomic::{self, AtomicU64};
 use {
@@ -64,9 +66,6 @@ impl FromPrimitive for PubkeyError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for PubkeyError {}
-
 impl fmt::Display for PubkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -97,7 +96,7 @@ impl From<u64> for PubkeyError {
     }
 }
 
-#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Pubkey(pub(crate) [u8; 32]);
 
 impl Sanitize for Pubkey {}
@@ -138,9 +137,6 @@ impl FromPrimitive for ParsePubkeyError {
         Self::from_i64(n as i64)
     }
 }
-
-#[cfg(feature = "std")]
-impl std::error::Error for ParsePubkeyError {}
 
 impl fmt::Display for ParsePubkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -239,17 +235,6 @@ impl Pubkey {
 
     pub const fn to_bytes(self) -> [u8; 32] {
         self.0
-    }
-
-    /// Log a `Pubkey` from a program
-    pub fn log(&self) {
-        #[cfg(target_os = "solana")]
-        unsafe {
-            crate::syscalls::sol_log_pubkey(self.as_ref() as *const _ as *const u8)
-        };
-
-        #[cfg(all(not(target_os = "solana"), feature = "std"))]
-        std::println!("{}", std::string::ToString::to_string(&self));
     }
 
     pub fn create_program_address(

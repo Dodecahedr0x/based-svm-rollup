@@ -56,6 +56,9 @@ impl Hasher {
 }
 
 pub type Hash = [u8; 32];
+
+impl Sanitize for Hash {}
+
 pub type SlotHash = (u64, Hash);
 
 #[repr(C)]

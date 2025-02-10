@@ -36,7 +36,6 @@ pub struct Secp256r1SignatureOffsets {
     pub message_instruction_index: u16,
 }
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "solana")))]
 mod target_arch {
     use {
         crate::{

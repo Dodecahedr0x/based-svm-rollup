@@ -7,16 +7,13 @@
 // inside the zkVM.
 #![no_main]
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use deterministic_svm::{
-    AccountSharedData, ComputeBudget, FeatureSet, FeeStructure, InvokeContext, Pubkey, Rent,
-    TransactionContext,
-};
-use solana_sbpf::{
-    memory_region::MemoryMapping,
-    program::{BuiltinProgram, SBPFVersion},
-    vm::EbpfVm,
+    create_program_runtime_environment_v1, legacy::Message, process_message, AccountSharedData,
+    ComputeBudget, EnvironmentConfig, Epoch, ExecuteTimings, FeatureSet, FeeStructure, Hash,
+    InvokeContext, ProgramCacheForTxBatch, ProgramRuntimeEnvironments, Pubkey, Rent,
+    SanitizedTransaction, Slot, SysvarCache, Transaction, TransactionContext,
 };
 
 sp1_zkvm::entrypoint!(main);
@@ -81,17 +78,7 @@ pub fn main() {
 
     // let rent = Rent::default();
 
-    let accounts_data = transaction
-        .message
-        .account_keys
-        .iter()
-        .map(|pubkey| {
-            (
-                pubkey.clone(),
-                rpc_client_temp.get_account(pubkey).unwrap().into(),
-            )
-        })
-        .collect::<Vec<(Pubkey, AccountSharedData)>>();
+    let accounts_data: Vec<(Pubkey, AccountSharedData)> = vec![];
 
     let mut transaction_context = TransactionContext::new(accounts_data, Rent::default(), 0, 0);
 
@@ -109,13 +96,14 @@ pub fn main() {
         Epoch::default(),
     );
 
-    let sysvar_c = sysvar_cache::SysvarCache::default();
+    let sysvar_c = SysvarCache::default();
+    let get_epoch_vote_account_stake_callback = |_| 0;
     let env = EnvironmentConfig::new(
         Hash::default(),
-        None,
-        None,
-        Arc::new(feature_set),
         lamports_per_signature,
+        0,
+        &get_epoch_vote_account_stake_callback,
+        Arc::new(feature_set),
         &sysvar_c,
     );
     // let default_env = EnvironmentConfig::new(blockhash, epoch_total_stake, epoch_vote_accounts, feature_set, lamports_per_signature, sysvar_cache)
@@ -139,16 +127,18 @@ pub fn main() {
     );
 
     let mut used_cu = 0u64;
+    let transaction = Transaction::new_unsigned(Message::new(&vec![], Some(&Pubkey::new_unique())));
     let sanitized = SanitizedTransaction::try_from_legacy_transaction(
         Transaction::from(transaction.clone()),
         &HashSet::new(),
-    );
+    )
+    .unwrap();
     log::info!("{:?}", sanitized.clone());
 
     let mut timings = ExecuteTimings::default();
 
-    let _result_msg = MessageProcessor::process_message(
-        sanitized.unwrap().message(),
+    let _result_msg = process_message(
+        sanitized.message(),
         &vec![],
         &mut invoke_context,
         &mut timings,

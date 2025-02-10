@@ -583,6 +583,8 @@ dependencies = [
  "percentage",
  "scopeguard",
  "serde",
+ "serde-big-array",
+ "serde_derive",
  "sha2 0.10.8",
  "sha3",
  "solana-sbpf",
@@ -1537,6 +1539,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02fc4265df13d6fa1d00ecff087228cc0a2b5f3c0e87e258d8b94a156e984c70"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-big-array"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -2752,6 +2763,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "deterministic_svm",
+ "log",
  "solana-sbpf",
  "sp1-zkvm",
 ]
