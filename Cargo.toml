@@ -39,3 +39,7 @@ solana-sdk = "2.1.10"
 solana-sbpf = "=0.9.0"
 sp1-zkvm = "4.0.1"
 thiserror = "1.0.69"
+
+[patch.crates-io]
+getrandom = { git = "https://github.com/nitro-svm/getrandom", branch = "0.1-zkvm" }
+# libc = { git = "https://github.com/rust-lang/libc.git" }
