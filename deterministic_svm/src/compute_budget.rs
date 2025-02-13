@@ -33,7 +33,7 @@ pub const HEAP_LENGTH: usize = 32 * 1024;
 pub const NON_DUP_MARKER: u8 = u8::MAX;
 
 /// There are 10^6 micro-lamports in one lamport
-const MICRO_LAMPORTS_PER_LAMPORT: u64 = 1_000_000;
+// const MICRO_LAMPORTS_PER_LAMPORT: u64 = 1_000_000;
 
 /// The total accounts data a transaction can load is limited to 64MiB to not break
 /// anyone in Mainnet-beta today. It can be set by set_loaded_accounts_data_size_limit instruction

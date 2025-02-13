@@ -647,6 +647,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "serde-big-array",
+ "serde_bytes",
  "serde_derive",
  "sha2 0.10.8",
  "sha3",
@@ -3870,6 +3871,7 @@ dependencies = [
  "bincode",
  "deterministic_svm",
  "log",
+ "serde",
  "solana-sbpf",
  "sp1-zkvm 4.1.0",
 ]

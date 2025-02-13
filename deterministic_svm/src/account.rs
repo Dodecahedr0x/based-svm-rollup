@@ -5,7 +5,9 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
-use crate::{Epoch, ProgramError, Pubkey};
+use serde::{Deserialize, Serialize};
+
+use crate::{AccountSharedData, Epoch, ProgramError, Pubkey};
 
 pub const MAX_PERMITTED_DATA_INCREASE: usize = 1_024 * 10;
 
@@ -23,7 +25,6 @@ where
     }
 }
 
-#[cfg(not(target_os = "solana"))]
 #[allow(clippy::arithmetic_side_effects)]
 pub mod stubs {
     use super::is_nonoverlapping;
@@ -65,12 +66,6 @@ pub mod stubs {
 
 #[inline]
 pub fn sol_memset(s: &mut [u8], c: u8, n: usize) {
-    #[cfg(target_os = "solana")]
-    unsafe {
-        syscalls::sol_memset_(s.as_mut_ptr(), c, n as u64);
-    }
-
-    #[cfg(not(target_os = "solana"))]
     unsafe {
         stubs::sol_memset(s.as_mut_ptr(), c, n);
     }
@@ -300,12 +295,12 @@ impl<'a, T: IntoAccountInfo<'a>> From<T> for AccountInfo<'a> {
 }
 
 #[repr(C)]
-#[derive(PartialEq, Eq, Clone, Default)]
+#[derive(PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
 pub struct Account {
     /// lamports in the account
     pub lamports: u64,
     /// data held in this account
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[serde(with = "serde_bytes")]
     pub data: Vec<u8>,
     /// the program that owns this account. If executable, the program that loads this account.
     pub owner: Pubkey,

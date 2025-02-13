@@ -46,15 +46,15 @@ pub type IndexOfAccount = u16;
 #[derive(PartialEq, Eq, Clone, Default)]
 pub struct AccountSharedData {
     /// lamports in the account
-    lamports: u64,
+    pub lamports: u64,
     /// data held in this account
-    data: Arc<Vec<u8>>,
+    pub data: Arc<Vec<u8>>,
     /// the program that owns this account. If executable, the program that loads this account.
-    owner: Pubkey,
+    pub owner: Pubkey,
     /// this account's data contains a loaded program (and is now read-only)
-    executable: bool,
+    pub executable: bool,
     /// the epoch at which this account will next owe rent
-    rent_epoch: Epoch,
+    pub rent_epoch: Epoch,
 }
 
 impl From<AccountSharedData> for Account {
@@ -81,6 +81,18 @@ impl From<Account> for AccountSharedData {
         }
     }
 }
+
+// impl Into<Account> for AccountSharedData {
+//     fn into(self) -> Account {
+//         Account {
+//             lamports: self.lamports,
+//             data: self.data.to_vec(),
+//             owner: self.owner,
+//             executable: self.executable,
+//             rent_epoch: self.rent_epoch,
+//         }
+//     }
+// }
 
 pub trait WritableAccount: ReadableAccount {
     fn set_lamports(&mut self, lamports: u64);
@@ -1490,7 +1502,6 @@ impl BorrowedAccount<'_> {
     }
 
     /// Serializes a state into the account data
-    #[cfg(all(not(target_os = "solana"), feature = "bincode"))]
     pub fn set_state<T: serde::Serialize>(&mut self, state: &T) -> Result<(), InstructionError> {
         let data = self.get_data_mut()?;
         let serialized_size =
@@ -1504,7 +1515,6 @@ impl BorrowedAccount<'_> {
 
     // Returns whether or the lamports currently in the account is sufficient for rent exemption should the
     // data be resized to the given size
-    #[cfg(not(target_os = "solana"))]
     pub fn is_rent_exempt_at_data_length(&self, data_length: usize) -> bool {
         self.transaction_context
             .rent
@@ -1560,7 +1570,6 @@ impl BorrowedAccount<'_> {
     }
 
     /// Returns the rent epoch of this account (transaction wide)
-    #[cfg(not(target_os = "solana"))]
     #[inline]
     pub fn get_rent_epoch(&self) -> u64 {
         self.account.rent_epoch()
@@ -1601,7 +1610,6 @@ impl BorrowedAccount<'_> {
     }
 
     /// Returns an error if the account data can not be mutated by the current program
-    #[cfg(not(target_os = "solana"))]
     pub fn can_data_be_changed(&self) -> Result<(), InstructionError> {
         // Only non-executable accounts data can be changed
         if self.is_executable_internal() {
@@ -1619,7 +1627,6 @@ impl BorrowedAccount<'_> {
     }
 
     /// Returns an error if the account data can not be resized to the given length
-    #[cfg(not(target_os = "solana"))]
     pub fn can_data_be_resized(&self, new_length: usize) -> Result<(), InstructionError> {
         let old_length = self.get_data().len();
         // Only the owner can change the length of the data
@@ -1643,14 +1650,12 @@ impl BorrowedAccount<'_> {
         Ok(())
     }
 
-    #[cfg(not(target_os = "solana"))]
     fn touch(&self) -> Result<(), InstructionError> {
         self.transaction_context
             .accounts()
             .touch(self.index_in_transaction)
     }
 
-    #[cfg(not(target_os = "solana"))]
     fn update_accounts_resize_delta(&mut self, new_len: usize) -> Result<(), InstructionError> {
         let mut accounts_resize_delta = self
             .transaction_context
@@ -2484,53 +2489,53 @@ impl From<Transaction> for VersionedTransaction {
 impl VersionedTransaction {
     /// Signs a versioned message and if successful, returns a signed
     /// transaction.
-    #[cfg(feature = "bincode")]
-    pub fn try_new<T: Signers + ?Sized>(
-        message: VersionedMessage,
-        keypairs: &T,
-    ) -> std::result::Result<Self, SignerError> {
-        let static_account_keys = message.static_account_keys();
-        if static_account_keys.len() < message.header().num_required_signatures as usize {
-            return Err(SignerError::InvalidInput("invalid message".to_string()));
-        }
+    // #[cfg(feature = "bincode")]
+    // pub fn try_new<T: Signers + ?Sized>(
+    //     message: VersionedMessage,
+    //     keypairs: &T,
+    // ) -> std::result::Result<Self, SignerError> {
+    //     let static_account_keys = message.static_account_keys();
+    //     if static_account_keys.len() < message.header().num_required_signatures as usize {
+    //         return Err(SignerError::InvalidInput("invalid message".to_string()));
+    //     }
 
-        let signer_keys = keypairs.try_pubkeys()?;
-        let expected_signer_keys =
-            &static_account_keys[0..message.header().num_required_signatures as usize];
+    //     let signer_keys = keypairs.try_pubkeys()?;
+    //     let expected_signer_keys =
+    //         &static_account_keys[0..message.header().num_required_signatures as usize];
 
-        match signer_keys.len().cmp(&expected_signer_keys.len()) {
-            Ordering::Greater => Err(SignerError::TooManySigners),
-            Ordering::Less => Err(SignerError::NotEnoughSigners),
-            Ordering::Equal => Ok(()),
-        }?;
+    //     match signer_keys.len().cmp(&expected_signer_keys.len()) {
+    //         Ordering::Greater => Err(SignerError::TooManySigners),
+    //         Ordering::Less => Err(SignerError::NotEnoughSigners),
+    //         Ordering::Equal => Ok(()),
+    //     }?;
 
-        let message_data = message.serialize();
-        let signature_indexes: Vec<usize> = expected_signer_keys
-            .iter()
-            .map(|signer_key| {
-                signer_keys
-                    .iter()
-                    .position(|key| key == signer_key)
-                    .ok_or(SignerError::KeypairPubkeyMismatch)
-            })
-            .collect::<std::result::Result<_, SignerError>>()?;
+    //     let message_data = message.serialize();
+    //     let signature_indexes: Vec<usize> = expected_signer_keys
+    //         .iter()
+    //         .map(|signer_key| {
+    //             signer_keys
+    //                 .iter()
+    //                 .position(|key| key == signer_key)
+    //                 .ok_or(SignerError::KeypairPubkeyMismatch)
+    //         })
+    //         .collect::<std::result::Result<_, SignerError>>()?;
 
-        let unordered_signatures = keypairs.try_sign_message(&message_data)?;
-        let signatures: Vec<Signature> = signature_indexes
-            .into_iter()
-            .map(|index| {
-                unordered_signatures
-                    .get(index)
-                    .copied()
-                    .ok_or_else(|| SignerError::InvalidInput("invalid keypairs".to_string()))
-            })
-            .collect::<std::result::Result<_, SignerError>>()?;
+    //     let unordered_signatures = keypairs.try_sign_message(&message_data)?;
+    //     let signatures: Vec<Signature> = signature_indexes
+    //         .into_iter()
+    //         .map(|index| {
+    //             unordered_signatures
+    //                 .get(index)
+    //                 .copied()
+    //                 .ok_or_else(|| SignerError::InvalidInput("invalid keypairs".to_string()))
+    //         })
+    //         .collect::<std::result::Result<_, SignerError>>()?;
 
-        Ok(Self {
-            signatures,
-            message,
-        })
-    }
+    //     Ok(Self {
+    //         signatures,
+    //         message,
+    //     })
+    // }
 
     pub fn sanitize(&self) -> std::result::Result<(), SanitizeError> {
         self.message.sanitize()?;

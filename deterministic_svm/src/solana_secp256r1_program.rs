@@ -69,7 +69,7 @@ pub fn new_secp256r1_instruction(
 
 pub fn verify(
     data: &[u8],
-    instruction_datas: &[&[u8]],
+    _instruction_datas: &[&[u8]],
     _feature_set: &FeatureSet,
 ) -> Result<(), PrecompileError> {
     if data.len() < SIGNATURE_OFFSETS_START {

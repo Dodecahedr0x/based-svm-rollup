@@ -7,22 +7,37 @@
 // inside the zkVM.
 #![no_main]
 
-use std::{collections::HashSet, sync::Arc};
-
 use deterministic_svm::{
-    create_program_runtime_environment_v1, legacy::Message, process_message, AccountSharedData,
+    create_program_runtime_environment_v1, process_message, Account, AccountSharedData,
     ComputeBudget, EnvironmentConfig, Epoch, ExecuteTimings, FeatureSet, FeeStructure, Hash,
     InvokeContext, ProgramCacheForTxBatch, ProgramRuntimeEnvironments, Pubkey, Rent,
     SanitizedTransaction, Slot, SysvarCache, Transaction, TransactionContext,
 };
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, sync::Arc};
 
 sp1_zkvm::entrypoint!(main);
+
+#[derive(Deserialize, Serialize)]
+pub struct ExecutionInput {
+    pk_a: Pubkey,
+    account_a: Account,
+    pk_b: Pubkey,
+    account_b: Account,
+    tx: Transaction,
+}
+
+impl From<Vec<u8>> for ExecutionInput {
+    fn from(value: Vec<u8>) -> Self {
+        bincode::deserialize(&value).unwrap()
+    }
+}
 
 pub fn main() {
     // Read the input of the program.
     // It must contain everything needed to execute the block
-    let _input_bytes: Vec<u8> = sp1_zkvm::io::read::<Vec<u8>>();
-    // let _input = &mut ExecutionInput::from(input_bytes);
+    let input_bytes: Vec<u8> = sp1_zkvm::io::read::<Vec<u8>>();
+    let input = &mut ExecutionInput::from(input_bytes);
 
     // Transform the rollup block back into normal transactions
     // let _txs = input.block.instructions.iter().map(|ix| {
@@ -55,7 +70,6 @@ pub fn main() {
     //     MemoryMapping::Identity,
     //     4096,
     // );
-    // let mut svm = LiteSVM::new();
 
     // Process transactions
     let compute_budget = ComputeBudget::default();
@@ -78,7 +92,10 @@ pub fn main() {
 
     // let rent = Rent::default();
 
-    let accounts_data: Vec<(Pubkey, AccountSharedData)> = vec![];
+    let accounts_data: Vec<(Pubkey, AccountSharedData)> = vec![
+        (input.pk_a, input.account_a.clone().into()),
+        (input.pk_b, input.account_b.clone().into()),
+    ];
 
     let mut transaction_context = TransactionContext::new(accounts_data, Rent::default(), 0, 0);
 
@@ -127,7 +144,7 @@ pub fn main() {
     );
 
     let mut used_cu = 0u64;
-    let transaction = Transaction::new_unsigned(Message::new(&vec![], Some(&Pubkey::new_unique())));
+    let transaction = &input.tx;
     let sanitized = SanitizedTransaction::try_from_legacy_transaction(
         Transaction::from(transaction.clone()),
         &HashSet::new(),
@@ -155,9 +172,30 @@ pub fn main() {
     //     );
     // }
 
+    let a1 = bincode::serialize(&Account::from(
+        invoke_context
+            .transaction_context
+            .accounts()
+            .get(0)
+            .unwrap()
+            .clone()
+            .into_inner(),
+    ))
+    .unwrap();
+    let a2 = bincode::serialize(&Account::from(
+        invoke_context
+            .transaction_context
+            .accounts()
+            .get(1)
+            .unwrap()
+            .clone()
+            .into_inner(),
+    ))
+    .unwrap();
+
     // Update state root
     // let root_bytes = TreeNode::Leaf(vec![1, 2, 3, 4]).hash();
 
     // Commit to the output state of the blockchain
-    sp1_zkvm::io::commit_slice(&[1]);
+    sp1_zkvm::io::commit_slice(&[a1, a2].concat());
 }
