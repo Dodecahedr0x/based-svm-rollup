@@ -29,12 +29,6 @@ pub const MAX_LEADER_SCHEDULE_EPOCH_OFFSET: u64 = 3;
 /// Based on `MAX_LOCKOUT_HISTORY` from `vote_program`.
 pub const MINIMUM_SLOTS_PER_EPOCH: u64 = 32;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FullInflationFeaturePair {
-    pub vote_id: Pubkey, // Feature that grants the candidate the ability to enable full inflation
-    pub enable_id: Pubkey, // Feature to enable full inflation by the candidate
-}
-
 #[derive(Clone, Default)]
 pub struct Hasher {
     hasher: Sha256,

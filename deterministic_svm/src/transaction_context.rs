@@ -15,8 +15,8 @@ use std::{
 
 use crate::{
     ed25519_program, secp256k1_program, secp256r1_program, Account, AccountKeys,
-    CompiledInstruction, Hash, Instruction, InstructionError, MessageHeader, Pubkey, Rent,
-    Sanitize, SanitizeError,
+    CompiledInstruction, Hash, Instruction, InstructionError, LamportsError, MessageHeader, Pubkey,
+    Rent, Sanitize, SanitizeError,
 };
 use serde::{
     de::{self, SeqAccess, Unexpected, Visitor},
@@ -78,23 +78,6 @@ impl From<Account> for AccountSharedData {
             owner: other.owner,
             executable: other.executable,
             rent_epoch: other.rent_epoch,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum LamportsError {
-    /// arithmetic underflowed
-    ArithmeticUnderflow,
-    /// arithmetic overflowed
-    ArithmeticOverflow,
-}
-
-impl fmt::Display for LamportsError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::ArithmeticUnderflow => f.write_str("Arithmetic underflowed"),
-            Self::ArithmeticOverflow => f.write_str("Arithmetic overflowed"),
         }
     }
 }

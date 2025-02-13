@@ -10,22 +10,24 @@ ark-ff = { workspace = true }
 ark-serialize = { workspace = true }
 bincode = { workspace = true }
 base64 = { workspace = true }
-blake3 = { workspace = true }
-bs58 = { workspace = true }
-bytemuck = { workspace = true }
+blake3 = { workspace = true, features = ["traits-preview"] }
+bs58 = { workspace = true, features = ["alloc"] }
+bytemuck = { workspace = true, features = ["derive"] }
 byteorder = { workspace = true }
 curve25519-dalek = { workspace = true }
-enum-iterator = { workspace = true }
 ed25519-dalek = { workspace = true }
+ecdsa = { workspace = true }
+enum-iterator = { workspace = true }
 five8_const = { workspace = true }
 itertools = { workspace = true }
 lazy_static = { workspace = true }
 libsecp256k1 = { workspace = true }
 light-poseidon = { workspace = true }
 log = { workspace = true }
-openssl = { workspace = true }
+# openssl = { workspace = true }
 num-bigint = { workspace = true }
 num-traits = { workspace = true }
+p256 = { workspace = true }
 percentage = { workspace = true }
 scopeguard = { workspace = true }
 serde = { workspace = true }

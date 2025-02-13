@@ -9,7 +9,7 @@ use {
     std::{
         convert::TryFrom,
         fmt, mem,
-        str::FromStr,
+        str::{from_utf8, FromStr},
         sync::atomic::{self, AtomicU64},
     },
     thiserror::Error,
@@ -43,21 +43,37 @@ impl Hasher {
 
 impl Sanitize for Hash {}
 
+impl From<[u8; HASH_BYTES]> for Hash {
+    fn from(from: [u8; 32]) -> Self {
+        Self(from)
+    }
+}
+
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
     }
 }
 
+fn write_as_base58(f: &mut fmt::Formatter, h: &Hash) -> fmt::Result {
+    let mut out = [0u8; MAX_BASE58_LEN];
+    let out_slice: &mut [u8] = &mut out;
+    // This will never fail because the only possible error is BufferTooSmall,
+    // and we will never call it with too small a buffer.
+    let len = bs58::encode(h.0).onto(out_slice).unwrap();
+    let as_str = from_utf8(&out[..len]).unwrap();
+    f.write_str(as_str)
+}
+
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", bs58::encode(self.0).into_string())
+        write_as_base58(f, self)
     }
 }
 
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", bs58::encode(self.0).into_string())
+        write_as_base58(f, self)
     }
 }
 
@@ -76,13 +92,14 @@ impl FromStr for Hash {
         if s.len() > MAX_BASE58_LEN {
             return Err(ParseHashError::WrongSize);
         }
-        let bytes = bs58::decode(s)
-            .into_vec()
+        let mut bytes = [0; HASH_BYTES];
+        let decoded_size = bs58::decode(s)
+            .onto(&mut bytes)
             .map_err(|_| ParseHashError::Invalid)?;
-        if bytes.len() != mem::size_of::<Hash>() {
+        if decoded_size != mem::size_of::<Hash>() {
             Err(ParseHashError::WrongSize)
         } else {
-            Ok(Hash::new(&bytes))
+            Ok(bytes.into())
         }
     }
 }

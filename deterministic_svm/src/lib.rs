@@ -57,7 +57,7 @@ pub use program_ids::*;
 pub use pubkey::*;
 pub use runtime::*;
 use serde::{Deserialize, Serialize};
-use solana_sbpf::{
+pub use solana_sbpf::{
     error::{EbpfError, ProgramResult},
     memory_region::MemoryMapping,
     program::SBPFVersion,
@@ -659,7 +659,6 @@ impl fmt::Display for SanitizeError {
 impl Sanitize for CompiledInstruction {}
 
 impl CompiledInstruction {
-    #[cfg(feature = "bincode")]
     pub fn new<T: serde::Serialize>(program_ids_index: u8, data: &T, accounts: Vec<u8>) -> Self {
         let data = bincode::serialize(data).unwrap();
         Self {
