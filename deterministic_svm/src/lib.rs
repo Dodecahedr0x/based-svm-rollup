@@ -1,7 +1,6 @@
 pub mod account;
 pub mod blake3;
 pub mod compute_budget;
-// pub mod cpi_common;
 pub mod environment_config;
 pub mod feature_set;
 pub mod instruction;
@@ -14,6 +13,7 @@ pub mod program_ids;
 pub mod program_stubs;
 pub mod pubkey;
 pub mod runtime;
+pub mod short_vec;
 pub mod solana_bn254;
 pub mod solana_ed25519_program;
 pub mod solana_secp256k1_program;
@@ -22,6 +22,7 @@ pub mod solana_sha256_hasher;
 pub mod stable_log;
 pub mod svm_message;
 pub mod syscall;
+pub mod system_interface;
 pub mod timings;
 pub mod transaction_context;
 
@@ -74,6 +75,18 @@ pub const MAX_RETURN_DATA: usize = 1024;
 pub const MAX_CPI_INSTRUCTION_DATA_LEN: u64 = 10 * 1024;
 pub const MAX_CPI_INSTRUCTION_ACCOUNTS: u8 = u8::MAX;
 pub const MAX_CPI_ACCOUNT_INFOS: usize = 128;
+
+#[derive(Deserialize, Serialize)]
+pub struct ExecutionInput {
+    pub accounts: Vec<(Pubkey, Account)>,
+    pub txs: Vec<Transaction>,
+}
+
+impl From<Vec<u8>> for ExecutionInput {
+    fn from(value: Vec<u8>) -> Self {
+        bincode::deserialize(&value).unwrap()
+    }
+}
 
 #[repr(C)]
 pub struct StableVec<T> {
@@ -240,26 +253,6 @@ pub struct Instruction {
     pub data: Vec<u8>,
 }
 
-/// wasm-bindgen version of the Instruction struct.
-/// This duplication is required until https://github.com/rustwasm/wasm-bindgen/issues/3671
-/// is fixed. This must not diverge from the regular non-wasm Instruction struct.
-#[cfg(all(feature = "std", target_arch = "wasm32"))]
-#[wasm_bindgen::prelude::wasm_bindgen]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde_derive::Serialize, serde_derive::Deserialize)
-)]
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Instruction {
-    #[wasm_bindgen(skip)]
-    pub program_id: Pubkey,
-    #[wasm_bindgen(skip)]
-    pub accounts: Vec<AccountMeta>,
-    #[wasm_bindgen(skip)]
-    pub data: Vec<u8>,
-}
-
-#[cfg(feature = "std")]
 impl Instruction {
     #[cfg(feature = "borsh")]
     /// Create a new instruction from a value, encoded with [`borsh`].
@@ -320,7 +313,6 @@ impl Instruction {
         }
     }
 
-    #[cfg(feature = "bincode")]
     /// Create a new instruction from a value, encoded with [`bincode`].
     ///
     /// [`bincode`]: https://docs.rs/bincode/latest/bincode/

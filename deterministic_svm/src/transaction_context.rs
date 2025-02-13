@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    ed25519_program, secp256k1_program, secp256r1_program, Account, AccountKeys,
+    ed25519_program, secp256k1_program, secp256r1_program, short_vec, Account, AccountKeys,
     CompiledInstruction, Hash, Instruction, InstructionError, LamportsError, MessageHeader, Pubkey,
     Rent, Sanitize, SanitizeError,
 };
@@ -2239,6 +2239,7 @@ pub struct Transaction {
     /// [`MessageHeader`]: https://docs.rs/solana-message/latest/solana_message/struct.MessageHeader.html
     /// [`num_required_signatures`]: https://docs.rs/solana-message/latest/solana_message/struct.MessageHeader.html#structfield.num_required_signatures
     // NOTE: Serialization-related changes must be paired with the direct read at sigverify.
+    #[serde(with = "short_vec")]
     pub signatures: Vec<Signature>,
 
     /// The message to sign.

@@ -9,29 +9,13 @@
 
 use deterministic_svm::{
     create_program_runtime_environment_v1, process_message, Account, AccountSharedData,
-    ComputeBudget, EnvironmentConfig, Epoch, ExecuteTimings, FeatureSet, FeeStructure, Hash,
-    InvokeContext, ProgramCacheForTxBatch, ProgramRuntimeEnvironments, Pubkey, Rent,
-    SanitizedTransaction, Slot, SysvarCache, Transaction, TransactionContext,
+    ComputeBudget, EnvironmentConfig, Epoch, ExecuteTimings, ExecutionInput, FeatureSet,
+    FeeStructure, Hash, InvokeContext, ProgramCacheForTxBatch, ProgramRuntimeEnvironments, Pubkey,
+    Rent, SanitizedTransaction, Slot, SysvarCache, Transaction, TransactionContext,
 };
-use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
 
 sp1_zkvm::entrypoint!(main);
-
-#[derive(Deserialize, Serialize)]
-pub struct ExecutionInput {
-    pk_a: Pubkey,
-    account_a: Account,
-    pk_b: Pubkey,
-    account_b: Account,
-    tx: Transaction,
-}
-
-impl From<Vec<u8>> for ExecutionInput {
-    fn from(value: Vec<u8>) -> Self {
-        bincode::deserialize(&value).unwrap()
-    }
-}
 
 pub fn main() {
     // Read the input of the program.
@@ -92,10 +76,11 @@ pub fn main() {
 
     // let rent = Rent::default();
 
-    let accounts_data: Vec<(Pubkey, AccountSharedData)> = vec![
-        (input.pk_a, input.account_a.clone().into()),
-        (input.pk_b, input.account_b.clone().into()),
-    ];
+    let accounts_data: Vec<(Pubkey, AccountSharedData)> = input
+        .accounts
+        .iter()
+        .map(|(pk, acc)| (*pk, acc.clone().into()))
+        .collect();
 
     let mut transaction_context = TransactionContext::new(accounts_data, Rent::default(), 0, 0);
 
@@ -144,7 +129,7 @@ pub fn main() {
     );
 
     let mut used_cu = 0u64;
-    let transaction = &input.tx;
+    let transaction = &input.txs[0];
     let sanitized = SanitizedTransaction::try_from_legacy_transaction(
         Transaction::from(transaction.clone()),
         &HashSet::new(),
